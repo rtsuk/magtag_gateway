@@ -39,17 +39,17 @@
       "totalGames" : 1,
       "totalMatches" : 0,
       "dates" : [ {
-        "date" : "2021-03-19",
+        "date" : "2021-03-20",
         "totalItems" : 1,
         "totalEvents" : 0,
         "totalGames" : 1,
         "totalMatches" : 0,
         "games" : [ {
-          "gamePk" : 2020020482,
-          "link" : "/api/v1/game/2020020482/feed/live",
+          "gamePk" : 2020020493,
+          "link" : "/api/v1/game/2020020493/feed/live",
           "gameType" : "R",
           "season" : "20202021",
-          "gameDate" : "2021-03-20T01:00:00Z",
+          "gameDate" : "2021-03-21T01:00:00Z",
           "status" : {
             "abstractGameState" : "Preview",
             "codedGameState" : "1",
@@ -60,7 +60,7 @@
           "teams" : {
             "away" : {
               "leagueRecord" : {
-                "wins" : 14,
+                "wins" : 15,
                 "losses" : 10,
                 "ot" : 5,
                 "type" : "league"
@@ -76,7 +76,7 @@
               "leagueRecord" : {
                 "wins" : 11,
                 "losses" : 13,
-                "ot" : 3,
+                "ot" : 4,
                 "type" : "league"
               },
               "score" : 0,
@@ -92,7 +92,7 @@
             "link" : "/api/v1/venues/null"
           },
           "content" : {
-            "link" : "/api/v1/game/2020020482/content"
+            "link" : "/api/v1/game/2020020493/content"
           }
         } ],
         "events" : [ ],
