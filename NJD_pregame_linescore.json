@@ -1,0 +1,116 @@
+{
+  "copyright" : "NHL and the NHL Shield are registered trademarks of the National Hockey League. NHL and NHL team marks are the property of the NHL and its teams. © NHL 2021. All Rights Reserved.",
+  "totalItems" : 1,
+  "totalEvents" : 0,
+  "totalGames" : 1,
+  "totalMatches" : 0,
+  "wait" : 10,
+  "dates" : [ {
+    "date" : "2021-03-21",
+    "totalItems" : 1,
+    "totalEvents" : 0,
+    "totalGames" : 1,
+    "totalMatches" : 0,
+    "games" : [ {
+      "gamePk" : 2020020151,
+      "link" : "/api/v1/game/2020020151/feed/live",
+      "gameType" : "R",
+      "season" : "20202021",
+      "gameDate" : "2021-03-21T17:00:00Z",
+      "status" : {
+        "abstractGameState" : "Preview",
+        "codedGameState" : "2",
+        "detailedState" : "Pre-Game",
+        "statusCode" : "2",
+        "startTimeTBD" : false
+      },
+      "teams" : {
+        "away" : {
+          "leagueRecord" : {
+            "wins" : 10,
+            "losses" : 14,
+            "ot" : 4,
+            "type" : "league"
+          },
+          "score" : 0,
+          "team" : {
+            "id" : 1,
+            "name" : "New Jersey Devils",
+            "link" : "/api/v1/teams/1"
+          }
+        },
+        "home" : {
+          "leagueRecord" : {
+            "wins" : 19,
+            "losses" : 11,
+            "ot" : 1,
+            "type" : "league"
+          },
+          "score" : 0,
+          "team" : {
+            "id" : 5,
+            "name" : "Pittsburgh Penguins",
+            "link" : "/api/v1/teams/5"
+          }
+        }
+      },
+      "linescore" : {
+        "currentPeriod" : 0,
+        "periods" : [ ],
+        "shootoutInfo" : {
+          "away" : {
+            "scores" : 0,
+            "attempts" : 0
+          },
+          "home" : {
+            "scores" : 0,
+            "attempts" : 0
+          }
+        },
+        "teams" : {
+          "home" : {
+            "team" : {
+              "id" : 5,
+              "name" : "Pittsburgh Penguins",
+              "link" : "/api/v1/teams/5"
+            },
+            "goals" : 0,
+            "shotsOnGoal" : 0,
+            "goaliePulled" : false,
+            "numSkaters" : 0,
+            "powerPlay" : false
+          },
+          "away" : {
+            "team" : {
+              "id" : 1,
+              "name" : "New Jersey Devils",
+              "link" : "/api/v1/teams/1"
+            },
+            "goals" : 0,
+            "shotsOnGoal" : 0,
+            "goaliePulled" : false,
+            "numSkaters" : 0,
+            "powerPlay" : false
+          }
+        },
+        "powerPlayStrength" : "Even",
+        "hasShootout" : false,
+        "intermissionInfo" : {
+          "intermissionTimeRemaining" : 0,
+          "intermissionTimeElapsed" : 0,
+          "inIntermission" : false
+        }
+      },
+      "venue" : {
+        "id" : 5034,
+        "name" : "PPG Paints Arena",
+        "link" : "/api/v1/venues/5034"
+      },
+      "content" : {
+        "link" : "/api/v1/game/2020020151/content"
+      }
+    } ],
+    "events" : [ ],
+    "matches" : [ ]
+  } ]
+}

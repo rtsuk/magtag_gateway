@@ -1,5 +1,25 @@
 use chrono::{DateTime, FixedOffset, Timelike, Utc};
+use log::info;
 use serde::{Deserialize, Serialize};
+use std::{
+    env,
+    fs::{self},
+    path::{Path, PathBuf},
+};
+use structopt::StructOpt;
+
+#[derive(StructOpt, Debug)]
+#[structopt(name = "magtag_gateway")]
+struct Opt {
+    #[structopt(short, long)]
+    verbose: bool,
+
+    #[structopt(short, long)]
+    line: bool,
+
+    #[structopt(short, long)]
+    file: Option<PathBuf>,
+}
 
 const SHARKS_ID: usize = 28;
 
@@ -13,7 +33,7 @@ pub struct Team {
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct TeamAtGame {
-    pub score: usize,
+    pub score: Option<usize>,
     pub team: Team,
 }
 
@@ -68,10 +88,31 @@ pub struct Response {
 
 #[async_std::main]
 async fn main() -> surf::Result<()> {
-    let mut res =
-        surf::get("https://statsapi.web.nhl.com/api/v1/teams/28?expand=team.schedule.next").await?;
-    let schedule: Response = serde_json::from_str(&res.body_string().await?)?;
-    dbg!(schedule);
+    let opt = Opt::from_args();
+
+    if opt.verbose {
+        env::set_var("RUST_LOG", "info");
+    }
+
+    pretty_env_logger::init();
+
+    info!("starting");
+
+    let schedule_string = if let Some(file) = opt.file.as_ref() {
+        fs::read_to_string(file)?
+    } else {
+        let mut res =
+            surf::get("https://statsapi.web.nhl.com/api/v1/teams/28?expand=team.schedule.next")
+                .await?;
+        res.body_string().await?
+    };
+    if opt.line {
+        let schedule: NextGameSchedule = serde_json::from_str(&schedule_string)?;
+        dbg!(schedule);
+    } else {
+        let schedule: Response = serde_json::from_str(&schedule_string)?;
+        dbg!(schedule);
+    }
     Ok(())
 }
 
