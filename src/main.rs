@@ -1,4 +1,6 @@
-use chrono::{DateTime, FixedOffset, Timelike, Utc};
+#![allow(unused)]
+use anyhow::{Error, Result};
+use chrono::{Date, DateTime, FixedOffset, Local, Timelike, Utc};
 use log::info;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -7,6 +9,7 @@ use std::{
     path::{Path, PathBuf},
 };
 use structopt::StructOpt;
+use tide::prelude::*;
 
 #[derive(StructOpt, Debug)]
 #[structopt(name = "magtag_gateway")]
@@ -86,8 +89,75 @@ pub struct Response {
     pub teams: Vec<ScheduledTeam>,
 }
 
+fn parse_file(opt: &Opt) -> Result<(), Error> {
+    if let Some(file) = opt.file.as_ref() {
+        let schedule_string = fs::read_to_string(file)?;
+        if opt.line {
+            let schedule: NextGameSchedule = serde_json::from_str(&schedule_string)?;
+            dbg!(schedule);
+        } else {
+            let schedule: Response = serde_json::from_str(&schedule_string)?;
+            dbg!(schedule);
+        }
+    }
+    Ok(())
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct NextUp {
+    top: String,
+    middle: String,
+    bottom: String,
+}
+
+async fn get_next_up(mut req: tide::Request<()>) -> tide::Result {
+    let mut next_response =
+        surf::get("https://statsapi.web.nhl.com/api/v1/teams/28?expand=team.schedule.next").await?;
+    let next_response_string = next_response.body_string().await?;
+
+    let schedule: Response = serde_json::from_str(&next_response_string)?;
+    let team = &schedule.teams[0];
+    let next_game_schedule = &team.next_game_schedule;
+    let game_date = &next_game_schedule.dates[0];
+    let game = &game_date.games[0];
+
+    info!("game = {:?}", game);
+
+    let opponent_name = if game.teams.home.team.id == SHARKS_ID {
+        format!("vs {}", game.teams.away.team.name)
+    } else {
+        format!("@ {}", game.teams.home.team.name)
+    };
+
+    let tomorrow = chrono::offset::Local::today().succ();
+    let date_str = if game.game_date.with_timezone(&Local).date()== tomorrow {
+        String::from("Tomorrow")
+    } else {
+        let ht = chrono_humanize::HumanTime::from(game.game_date);
+        ht.to_text_en(
+            chrono_humanize::Accuracy::Rough,
+            chrono_humanize::Tense::Future,
+        )
+    };
+
+    let next = NextUp {
+        bottom: date_str,
+        middle: opponent_name,
+        top: "Next Up".to_string(),
+    };
+
+    let next_json = serde_json::to_string(&next)?;
+
+    let mut response = tide::Response::builder(tide::StatusCode::Ok)
+        .body(next_json)
+        .content_type(http_types::mime::JSON)
+        .build();
+
+    Ok(response)
+}
+
 #[async_std::main]
-async fn main() -> surf::Result<()> {
+async fn main() -> Result<(), Error> {
     let opt = Opt::from_args();
 
     if opt.verbose {
@@ -98,21 +168,14 @@ async fn main() -> surf::Result<()> {
 
     info!("starting");
 
-    let schedule_string = if let Some(file) = opt.file.as_ref() {
-        fs::read_to_string(file)?
+    if opt.file.is_some() {
+        parse_file(&opt)?;
     } else {
-        let mut res =
-            surf::get("https://statsapi.web.nhl.com/api/v1/teams/28?expand=team.schedule.next")
-                .await?;
-        res.body_string().await?
-    };
-    if opt.line {
-        let schedule: NextGameSchedule = serde_json::from_str(&schedule_string)?;
-        dbg!(schedule);
-    } else {
-        let schedule: Response = serde_json::from_str(&schedule_string)?;
-        dbg!(schedule);
+        let mut app = tide::new();
+        app.at("/next").get(get_next_up);
+        app.listen("0.0.0.0:8080").await?;
     }
+
     Ok(())
 }
 
