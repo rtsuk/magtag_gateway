@@ -120,7 +120,7 @@ async fn main() -> surf::Result<()> {
 mod test {
     use super::*;
 
-    const NEXT_TEXT: &str = include_str!("../next.json");
+    const NEXT_TEXT: &str = include_str!("../data/next.json");
 
     #[test]
     fn test_next() {
@@ -132,6 +132,6 @@ mod test {
         assert_eq!(1, next_game_schedule.total_items);
         assert_eq!(1, next_game_schedule.dates.len());
         let game_date = &next_game_schedule.dates[0];
-        assert_eq!(game_date.date, "2021-03-19");
+        assert_eq!(game_date.date, "2021-03-20");
     }
 }
