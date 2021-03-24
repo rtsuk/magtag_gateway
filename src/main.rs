@@ -122,6 +122,8 @@ async fn get_next_up(mut req: tide::Request<()>) -> tide::Result {
     let game_date = &next_game_schedule.dates[0];
     let game = &game_date.games[0];
 
+    let game_date_pacific = game.game_date.with_timezone(&Pacific);
+
     info!("game = {:?}", game);
 
     let opponent_name = if game.teams.home.team.id == SHARKS_ID {
@@ -131,10 +133,10 @@ async fn get_next_up(mut req: tide::Request<()>) -> tide::Result {
     };
 
     let tomorrow = chrono::offset::Local::today().succ();
-    let date_str = if game.game_date.with_timezone(&Local).date() == tomorrow {
+    let date_str = if game_date_pacific.date() == tomorrow {
         String::from("Tomorrow")
     } else {
-        let ht = chrono_humanize::HumanTime::from(game.game_date);
+        let ht = chrono_humanize::HumanTime::from(game_date_pacific);
         ht.to_text_en(
             chrono_humanize::Accuracy::Rough,
             chrono_humanize::Tense::Future,
