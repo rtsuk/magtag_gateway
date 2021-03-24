@@ -130,7 +130,7 @@ async fn get_next_up(mut req: tide::Request<()>) -> tide::Result {
     };
 
     let tomorrow = chrono::offset::Local::today().succ();
-    let date_str = if game.game_date.with_timezone(&Local).date()== tomorrow {
+    let date_str = if game.game_date.with_timezone(&Local).date() == tomorrow {
         String::from("Tomorrow")
     } else {
         let ht = chrono_humanize::HumanTime::from(game.game_date);
@@ -156,6 +156,10 @@ async fn get_next_up(mut req: tide::Request<()>) -> tide::Result {
     Ok(response)
 }
 
+async fn redirect_root(request: tide::Request<()>) -> tide::Result {
+    Ok(tide::Redirect::new("/next").into())
+}
+
 #[async_std::main]
 async fn main() -> Result<(), Error> {
     let opt = Opt::from_args();
@@ -174,6 +178,7 @@ async fn main() -> Result<(), Error> {
         parse_file(&opt)?;
     } else {
         let mut app = tide::new();
+        app.at("/").get(redirect_root);
         app.at("/next").get(get_next_up);
         app.listen(format!("0.0.0.0:{}", port)).await?;
     }
