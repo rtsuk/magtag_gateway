@@ -166,14 +166,16 @@ async fn main() -> Result<(), Error> {
 
     pretty_env_logger::init();
 
-    info!("starting");
+    let default_port = String::from("8080");
+    let port = env::var("PORT").unwrap_or(default_port);
+    info!("starting on port {}", port);
 
     if opt.file.is_some() {
         parse_file(&opt)?;
     } else {
         let mut app = tide::new();
         app.at("/next").get(get_next_up);
-        app.listen("0.0.0.0:8080").await?;
+        app.listen(format!("0.0.0.0:{}", port)).await?;
     }
 
     Ok(())
