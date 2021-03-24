@@ -1,6 +1,7 @@
 #![allow(unused)]
 use anyhow::{Error, Result};
 use chrono::{Date, DateTime, FixedOffset, Local, Timelike, Utc};
+use chrono_tz::US::Pacific;
 use log::info;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -175,6 +176,7 @@ async fn main() -> Result<(), Error> {
 
     info!("utc {}", utc);
     info!("local {}", local);
+    info!("pacific {}", utc.with_timezone(&Pacific));
 
     let default_port = String::from("8080");
     let port = env::var("PORT").unwrap_or(default_port);
