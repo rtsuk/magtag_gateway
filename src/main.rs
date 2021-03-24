@@ -170,6 +170,12 @@ async fn main() -> Result<(), Error> {
 
     pretty_env_logger::init();
 
+    let utc: DateTime<Utc> = Utc::now();       // e.g. `2014-11-28T12:45:59.324310806Z`
+    let local: DateTime<Local> = Local::now(); // e.g. `2014-11-28T21:45:59.324310806+09:00`
+
+    info!("utc {}", utc);
+    info!("local {}", local);
+
     let default_port = String::from("8080");
     let port = env::var("PORT").unwrap_or(default_port);
     info!("starting on port {}", port);
