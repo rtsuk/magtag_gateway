@@ -1,1 +1,1 @@
-web: ./target/release/magtag_gateway
+web: ./target/release/magtag_gateway -v
