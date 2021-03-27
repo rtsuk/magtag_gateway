@@ -171,9 +171,8 @@ async fn get_next_up(mut req: tide::Request<()>) -> tide::Result {
         );
         NextUp {
             bottom: format!(
-                "{}, {}",
+                "{}",
                 game_date_pacific.format("%I:%M %p").to_string().trim(),
-                ht.to_string()
             ),
             middle: opponent_name,
             top: top.into(),
