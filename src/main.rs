@@ -66,6 +66,26 @@ impl Status {
     fn is_pregame(&self) -> bool {
         self.detailed_state == "Pre-Game"
     }
+
+    fn is_live(&self) -> bool {
+        self.abstract_game_state == "Live"
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct IntermissionInfo {
+    in_intermission: bool,
+    intermission_time_remaining: usize,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct Linescore {
+    current_period: usize,
+    current_period_ordinal: String,
+    current_period_time_remaining: String,
+    intermission_info: IntermissionInfo,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -74,6 +94,7 @@ pub struct Game {
     pub game_date: DateTime<Utc>,
     pub teams: Teams,
     pub status: Status,
+    pub linescore: Option<Linescore>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -109,6 +130,7 @@ struct NextUp {
     top: String,
     middle: String,
     bottom: String,
+    time: String,
 }
 
 fn opponent_name(teams: &Teams, home_team: usize) -> String {
@@ -119,9 +141,18 @@ fn opponent_name(teams: &Teams, home_team: usize) -> String {
     }
 }
 
+fn format_date_time(date_time: &DateTime<chrono_tz::Tz>) -> String {
+    date_time.format("%-I:%M%p").to_string()
+}
+
 async fn get_next_up(mut req: tide::Request<()>) -> tide::Result {
     let opt = Opt::from_args();
     let team_id = opt.team.unwrap_or(SHARKS_ID);
+    let today = chrono::offset::Local::today();
+    let tomorrow = today.succ();
+
+    let utc_now: DateTime<Utc> = Utc::now();
+    let pacific_now = utc_now.with_timezone(&Pacific);
 
     let next_response_string = if let Some(next) = opt.next.as_ref() {
         fs::read_to_string(next)?
@@ -148,21 +179,41 @@ async fn get_next_up(mut req: tide::Request<()>) -> tide::Result {
     };
 
     let line_schedule: NextGameSchedule = serde_json::from_str(&linescore_response_string)?;
-    dbg!(&line_schedule);
 
     let next = if line_schedule.total_items > 0 {
+        dbg!(&line_schedule);
         let game_date = &line_schedule.dates[0];
         let game = &game_date.games[0];
+        let linescore = game.linescore.as_ref().expect("linescore");
         let game_date_pacific = game.game_date.with_timezone(&Pacific);
         let opponent_name = opponent_name(&game.teams, team_id);
         let top = if game.status.is_preview() {
             if game.status.is_pregame() {
-                "Pregame"
+                "Pregame".to_string()
             } else {
-                "Today"
+                "Today".to_string()
+            }
+        } else if game.status.is_live() {
+            if linescore.intermission_info.in_intermission {
+                let intermission_time_left = chrono::Duration::seconds(
+                    linescore.intermission_info.intermission_time_remaining as i64,
+                );
+                let m = intermission_time_left.num_minutes();
+                let s = intermission_time_left.num_seconds() - m * 60;
+                format!(
+                    "{} intermission {:02}:{:02}",
+                    linescore.current_period_ordinal,
+                    m,
+                    s
+                )
+            } else {
+                format!(
+                    "{} {}",
+                    linescore.current_period_ordinal, linescore.current_period_time_remaining
+                )
             }
         } else {
-            "foo"
+            "Foo".to_string()
         };
         let ht = chrono_humanize::HumanTime::from(game_date_pacific);
         ht.to_text_en(
@@ -170,12 +221,10 @@ async fn get_next_up(mut req: tide::Request<()>) -> tide::Result {
             chrono_humanize::Tense::Future,
         );
         NextUp {
-            bottom: format!(
-                "{}",
-                game_date_pacific.format("%I:%M %p").to_string().trim(),
-            ),
+            bottom: format!("{}", format_date_time(&game_date_pacific)),
             middle: opponent_name,
             top: top.into(),
+            time: format_date_time(&pacific_now),
         }
     } else {
         let schedule: Response = serde_json::from_str(&next_response_string)?;
@@ -190,7 +239,6 @@ async fn get_next_up(mut req: tide::Request<()>) -> tide::Result {
 
         let opponent_name = opponent_name(&game.teams, team_id);
 
-        let tomorrow = chrono::offset::Local::today().succ();
         let date_str = if game_date_pacific.date() == tomorrow {
             String::from("Tomorrow")
         } else {
@@ -205,6 +253,7 @@ async fn get_next_up(mut req: tide::Request<()>) -> tide::Result {
             bottom: date_str,
             middle: opponent_name,
             top: "Next Up".to_string(),
+            time: format_date_time(&pacific_now),
         }
     };
 
