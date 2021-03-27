@@ -19,10 +19,13 @@ struct Opt {
     verbose: bool,
 
     #[structopt(short, long)]
-    line: bool,
+    line: Option<PathBuf>,
 
     #[structopt(short, long)]
-    file: Option<PathBuf>,
+    next: Option<PathBuf>,
+
+    #[structopt(short, long)]
+    team: Option<usize>,
 }
 
 const SHARKS_ID: usize = 28;
@@ -52,6 +55,17 @@ pub struct Teams {
 #[serde(rename_all = "camelCase")]
 pub struct Status {
     abstract_game_state: String,
+    detailed_state: String,
+}
+
+impl Status {
+    fn is_preview(&self) -> bool {
+        self.abstract_game_state == "Preview"
+    }
+
+    fn is_pregame(&self) -> bool {
+        self.detailed_state == "Pre-Game"
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -90,20 +104,6 @@ pub struct Response {
     pub teams: Vec<ScheduledTeam>,
 }
 
-fn parse_file(opt: &Opt) -> Result<(), Error> {
-    if let Some(file) = opt.file.as_ref() {
-        let schedule_string = fs::read_to_string(file)?;
-        if opt.line {
-            let schedule: NextGameSchedule = serde_json::from_str(&schedule_string)?;
-            dbg!(schedule);
-        } else {
-            let schedule: Response = serde_json::from_str(&schedule_string)?;
-            dbg!(schedule);
-        }
-    }
-    Ok(())
-}
-
 #[derive(Serialize, Deserialize, Debug)]
 struct NextUp {
     top: String,
@@ -111,42 +111,102 @@ struct NextUp {
     bottom: String,
 }
 
-async fn get_next_up(mut req: tide::Request<()>) -> tide::Result {
-    let mut next_response =
-        surf::get("https://statsapi.web.nhl.com/api/v1/teams/28?expand=team.schedule.next").await?;
-    let next_response_string = next_response.body_string().await?;
-
-    let schedule: Response = serde_json::from_str(&next_response_string)?;
-    let team = &schedule.teams[0];
-    let next_game_schedule = &team.next_game_schedule;
-    let game_date = &next_game_schedule.dates[0];
-    let game = &game_date.games[0];
-
-    let game_date_pacific = game.game_date.with_timezone(&Pacific);
-
-    info!("game = {:?}", game);
-
-    let opponent_name = if game.teams.home.team.id == SHARKS_ID {
-        format!("vs {}", game.teams.away.team.name)
+fn opponent_name(teams: &Teams, home_team: usize) -> String {
+    if teams.home.team.id == home_team {
+        format!("vs {}", teams.away.team.name)
     } else {
-        format!("@ {}", game.teams.home.team.name)
+        format!("@ {}", teams.home.team.name)
+    }
+}
+
+async fn get_next_up(mut req: tide::Request<()>) -> tide::Result {
+    let opt = Opt::from_args();
+    let team_id = opt.team.unwrap_or(SHARKS_ID);
+
+    let next_response_string = if let Some(next) = opt.next.as_ref() {
+        fs::read_to_string(next)?
+    } else {
+        let mut next_response = surf::get(format!(
+            "https://statsapi.web.nhl.com/api/v1/teams/{}?expand=team.schedule.next",
+            team_id
+        ))
+        .await?;
+        let next_response_string = next_response.body_string().await?;
+        next_response_string
     };
 
-    let tomorrow = chrono::offset::Local::today().succ();
-    let date_str = if game_date_pacific.date() == tomorrow {
-        String::from("Tomorrow")
+    let linescore_response_string = if let Some(line) = opt.line.as_ref() {
+        fs::read_to_string(line)?
     } else {
+        let mut line_response = surf::get(format!(
+            "https://statsapi.web.nhl.com/api/v1/schedule?expand=schedule.linescore&teamId={}",
+            team_id
+        ))
+        .await?;
+        let line_response_string = line_response.body_string().await?;
+        line_response_string
+    };
+
+    let line_schedule: NextGameSchedule = serde_json::from_str(&linescore_response_string)?;
+    dbg!(&line_schedule);
+
+    let next = if line_schedule.total_items > 0 {
+        let game_date = &line_schedule.dates[0];
+        let game = &game_date.games[0];
+        let game_date_pacific = game.game_date.with_timezone(&Pacific);
+        let opponent_name = opponent_name(&game.teams, team_id);
+        let top = if game.status.is_preview() {
+            if game.status.is_pregame() {
+                "Pregame"
+            } else {
+                "Today"
+            }
+        } else {
+            "foo"
+        };
         let ht = chrono_humanize::HumanTime::from(game_date_pacific);
         ht.to_text_en(
-            chrono_humanize::Accuracy::Rough,
+            chrono_humanize::Accuracy::Precise,
             chrono_humanize::Tense::Future,
-        )
-    };
+        );
+        NextUp {
+            bottom: format!(
+                "{}, {}",
+                game_date_pacific.format("%I:%M %p").to_string().trim(),
+                ht.to_string()
+            ),
+            middle: opponent_name,
+            top: top.into(),
+        }
+    } else {
+        let schedule: Response = serde_json::from_str(&next_response_string)?;
+        let team = &schedule.teams[0];
+        let next_game_schedule = &team.next_game_schedule;
+        let game_date = &next_game_schedule.dates[0];
+        let game = &game_date.games[0];
 
-    let next = NextUp {
-        bottom: date_str,
-        middle: opponent_name,
-        top: "Next Up".to_string(),
+        let game_date_pacific = game.game_date.with_timezone(&Pacific);
+
+        info!("game = {:?}", game);
+
+        let opponent_name = opponent_name(&game.teams, team_id);
+
+        let tomorrow = chrono::offset::Local::today().succ();
+        let date_str = if game_date_pacific.date() == tomorrow {
+            String::from("Tomorrow")
+        } else {
+            let ht = chrono_humanize::HumanTime::from(game_date_pacific);
+            ht.to_text_en(
+                chrono_humanize::Accuracy::Rough,
+                chrono_humanize::Tense::Future,
+            )
+        };
+
+        NextUp {
+            bottom: date_str,
+            middle: opponent_name,
+            top: "Next Up".to_string(),
+        }
     };
 
     let next_json = serde_json::to_string(&next)?;
@@ -173,7 +233,7 @@ async fn main() -> Result<(), Error> {
 
     pretty_env_logger::init();
 
-    let utc: DateTime<Utc> = Utc::now();       // e.g. `2014-11-28T12:45:59.324310806Z`
+    let utc: DateTime<Utc> = Utc::now(); // e.g. `2014-11-28T12:45:59.324310806Z`
     let local: DateTime<Local> = Local::now(); // e.g. `2014-11-28T21:45:59.324310806+09:00`
 
     info!("utc {}", utc);
@@ -184,14 +244,10 @@ async fn main() -> Result<(), Error> {
     let port = env::var("PORT").unwrap_or(default_port);
     info!("starting on port {}", port);
 
-    if opt.file.is_some() {
-        parse_file(&opt)?;
-    } else {
-        let mut app = tide::new();
-        app.at("/").get(redirect_root);
-        app.at("/next").get(get_next_up);
-        app.listen(format!("0.0.0.0:{}", port)).await?;
-    }
+    let mut app = tide::new();
+    app.at("/").get(redirect_root);
+    app.at("/next").get(get_next_up);
+    app.listen(format!("0.0.0.0:{}", port)).await?;
 
     Ok(())
 }
