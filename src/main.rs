@@ -181,12 +181,12 @@ async fn get_next_up(mut req: tide::Request<()>) -> tide::Result {
     let line_schedule: NextGameSchedule = serde_json::from_str(&linescore_response_string)?;
 
     let next = if line_schedule.total_items > 0 {
-        dbg!(&line_schedule);
         let game_date = &line_schedule.dates[0];
         let game = &game_date.games[0];
         let linescore = game.linescore.as_ref().expect("linescore");
         let game_date_pacific = game.game_date.with_timezone(&Pacific);
         let opponent_name = opponent_name(&game.teams, team_id);
+        let mut bottom = format!("{}", format_date_time(&game_date_pacific));
         let top = if game.status.is_preview() {
             if game.status.is_pregame() {
                 "Pregame".to_string()
@@ -202,9 +202,7 @@ async fn get_next_up(mut req: tide::Request<()>) -> tide::Result {
                 let s = intermission_time_left.num_seconds() - m * 60;
                 format!(
                     "{} intermission {:02}:{:02}",
-                    linescore.current_period_ordinal,
-                    m,
-                    s
+                    linescore.current_period_ordinal, m, s
                 )
             } else {
                 format!(
@@ -213,7 +211,8 @@ async fn get_next_up(mut req: tide::Request<()>) -> tide::Result {
                 )
             }
         } else {
-            "Foo".to_string()
+            bottom = "".to_string();
+            "Final".to_string()
         };
         let ht = chrono_humanize::HumanTime::from(game_date_pacific);
         ht.to_text_en(
@@ -221,7 +220,7 @@ async fn get_next_up(mut req: tide::Request<()>) -> tide::Result {
             chrono_humanize::Tense::Future,
         );
         NextUp {
-            bottom: format!("{}", format_date_time(&game_date_pacific)),
+            bottom,
             middle: opponent_name,
             top: top.into(),
             time: format_date_time(&pacific_now),
