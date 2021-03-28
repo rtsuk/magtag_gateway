@@ -111,6 +111,20 @@ pub struct NextGameSchedule {
     dates: Vec<GameDate>,
 }
 
+impl NextGameSchedule {
+    fn game_today(&self) -> bool {
+        if self.total_items < 1 {
+            return false;
+        }
+        let game_date = &self.dates[0];
+        let game = &game_date.games[0];
+        let game_date_pacific = game.game_date.with_timezone(&Pacific);
+        let utc_now: DateTime<Utc> = Utc::now();
+        let pacific_now = utc_now.with_timezone(&Pacific);
+        game_date_pacific >= pacific_now
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct ScheduledTeam {
@@ -180,7 +194,7 @@ async fn get_next_up(mut req: tide::Request<()>) -> tide::Result {
 
     let line_schedule: NextGameSchedule = serde_json::from_str(&linescore_response_string)?;
 
-    let next = if line_schedule.total_items > 0 {
+    let next = if line_schedule.game_today() {
         let game_date = &line_schedule.dates[0];
         let game = &game_date.games[0];
         let linescore = game.linescore.as_ref().expect("linescore");
