@@ -83,9 +83,9 @@ pub struct IntermissionInfo {
 #[serde(rename_all = "camelCase")]
 pub struct Linescore {
     current_period: usize,
-    current_period_ordinal: String,
-    current_period_time_remaining: String,
-    intermission_info: IntermissionInfo,
+    current_period_ordinal: Option<String>,
+    current_period_time_remaining: Option<String>,
+    intermission_info: Option<IntermissionInfo>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -195,6 +195,8 @@ async fn get_next_up(mut req: tide::Request<()>) -> tide::Result {
     let line_schedule: NextGameSchedule = serde_json::from_str(&linescore_response_string)?;
 
     let next = if line_schedule.game_today() {
+        let first = String::from("1st");
+        let no_time = String::from("00:00");
         let game_date = &line_schedule.dates[0];
         let game = &game_date.games[0];
         let linescore = game.linescore.as_ref().expect("linescore");
@@ -208,20 +210,29 @@ async fn get_next_up(mut req: tide::Request<()>) -> tide::Result {
                 "Today".to_string()
             }
         } else if game.status.is_live() {
-            if linescore.intermission_info.in_intermission {
-                let intermission_time_left = chrono::Duration::seconds(
-                    linescore.intermission_info.intermission_time_remaining as i64,
-                );
+            let intermission_info = linescore
+                .intermission_info
+                .as_ref()
+                .expect("intermission_info");
+            if intermission_info.in_intermission {
+                let intermission_time_left =
+                    chrono::Duration::seconds(intermission_info.intermission_time_remaining as i64);
                 let m = intermission_time_left.num_minutes();
                 let s = intermission_time_left.num_seconds() - m * 60;
                 format!(
                     "{} intermission {:02}:{:02}",
-                    linescore.current_period_ordinal, m, s
+                    linescore.current_period_ordinal.as_ref().unwrap_or(&first),
+                    m,
+                    s
                 )
             } else {
                 format!(
                     "{} {}",
-                    linescore.current_period_ordinal, linescore.current_period_time_remaining
+                    linescore.current_period_ordinal.as_ref().unwrap_or(&first),
+                    linescore
+                        .current_period_time_remaining
+                        .as_ref()
+                        .unwrap_or(&no_time)
                 )
             }
         } else {
@@ -292,8 +303,6 @@ async fn main() -> Result<(), Error> {
         env::set_var("RUST_LOG", "info");
     }
 
-    pretty_env_logger::init();
-
     let utc: DateTime<Utc> = Utc::now(); // e.g. `2014-11-28T12:45:59.324310806Z`
     let local: DateTime<Local> = Local::now(); // e.g. `2014-11-28T21:45:59.324310806+09:00`
 
@@ -304,6 +313,8 @@ async fn main() -> Result<(), Error> {
     let default_port = String::from("8080");
     let port = env::var("PORT").unwrap_or(default_port);
     info!("starting on port {}", port);
+
+    tide::log::start();
 
     let mut app = tide::new();
     app.at("/").get(redirect_root);
