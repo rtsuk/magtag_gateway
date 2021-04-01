@@ -1,0 +1,138 @@
+{
+  "copyright" : "NHL and the NHL Shield are registered trademarks of the National Hockey League. NHL and NHL team marks are the property of the NHL and its teams. © NHL 2021. All Rights Reserved.",
+  "totalItems" : 1,
+  "totalEvents" : 0,
+  "totalGames" : 1,
+  "totalMatches" : 0,
+  "wait" : 10,
+  "dates" : [ {
+    "date" : "2021-03-29",
+    "totalItems" : 1,
+    "totalEvents" : 0,
+    "totalGames" : 1,
+    "totalMatches" : 0,
+    "games" : [ {
+      "gamePk" : 2020020555,
+      "link" : "/api/v1/game/2020020555/feed/live",
+      "gameType" : "R",
+      "season" : "20202021",
+      "gameDate" : "2021-03-30T02:30:00Z",
+      "status" : {
+        "abstractGameState" : "Live",
+        "codedGameState" : "3",
+        "detailedState" : "In Progress",
+        "statusCode" : "3",
+        "startTimeTBD" : false
+      },
+      "teams" : {
+        "away" : {
+          "leagueRecord" : {
+            "wins" : 21,
+            "losses" : 10,
+            "ot" : 1,
+            "type" : "league"
+          },
+          "score" : 2,
+          "team" : {
+            "id" : 30,
+            "name" : "Minnesota Wild",
+            "link" : "/api/v1/teams/30"
+          }
+        },
+        "home" : {
+          "leagueRecord" : {
+            "wins" : 13,
+            "losses" : 16,
+            "ot" : 4,
+            "type" : "league"
+          },
+          "score" : 1,
+          "team" : {
+            "id" : 28,
+            "name" : "San Jose Sharks",
+            "link" : "/api/v1/teams/28"
+          }
+        }
+      },
+      "linescore" : {
+        "currentPeriod" : 1,
+        "currentPeriodOrdinal" : "1st",
+        "currentPeriodTimeRemaining" : "END",
+        "periods" : [ {
+          "periodType" : "REGULAR",
+          "startTime" : "2021-03-30T02:38:13Z",
+          "endTime" : "2021-03-30T03:14:05Z",
+          "num" : 1,
+          "ordinalNum" : "1st",
+          "home" : {
+            "goals" : 1,
+            "shotsOnGoal" : 18,
+            "rinkSide" : "left"
+          },
+          "away" : {
+            "goals" : 2,
+            "shotsOnGoal" : 7,
+            "rinkSide" : "right"
+          }
+        } ],
+        "shootoutInfo" : {
+          "away" : {
+            "scores" : 0,
+            "attempts" : 0
+          },
+          "home" : {
+            "scores" : 0,
+            "attempts" : 0
+          }
+        },
+        "teams" : {
+          "home" : {
+            "team" : {
+              "id" : 28,
+              "name" : "San Jose Sharks",
+              "link" : "/api/v1/teams/28"
+            },
+            "goals" : 1,
+            "shotsOnGoal" : 18,
+            "goaliePulled" : false,
+            "numSkaters" : 5,
+            "powerPlay" : false
+          },
+          "away" : {
+            "team" : {
+              "id" : 30,
+              "name" : "Minnesota Wild",
+              "link" : "/api/v1/teams/30"
+            },
+            "goals" : 2,
+            "shotsOnGoal" : 7,
+            "goaliePulled" : false,
+            "numSkaters" : 5,
+            "powerPlay" : false
+          }
+        },
+        "powerPlayStrength" : "Even",
+        "hasShootout" : false,
+        "intermissionInfo" : {
+          "intermissionTimeRemaining" : 526,
+          "intermissionTimeElapsed" : 554,
+          "inIntermission" : true
+        },
+        "powerPlayInfo" : {
+          "situationTimeRemaining" : 0,
+          "situationTimeElapsed" : 1200,
+          "inSituation" : false
+        }
+      },
+      "venue" : {
+        "name" : "SAP Center at San Jose",
+        "link" : "/api/v1/venues/null"
+      },
+      "content" : {
+        "link" : "/api/v1/game/2020020555/content"
+      }
+    } ],
+    "events" : [ ],
+    "matches" : [ ]
+  } ]
+}

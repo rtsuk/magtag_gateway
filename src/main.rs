@@ -112,15 +112,17 @@ pub struct NextGameSchedule {
 }
 
 impl NextGameSchedule {
-    fn game_today(&self) -> bool {
+    fn game_today(&self, utc_now: &DateTime<Utc>) -> bool {
         if self.total_items < 1 {
             return false;
         }
         let game_date = &self.dates[0];
         let game = &game_date.games[0];
         let game_date_pacific = game.game_date.with_timezone(&Pacific);
-        let utc_now: DateTime<Utc> = Utc::now();
         let pacific_now = utc_now.with_timezone(&Pacific);
+        dbg!(&pacific_now);
+        dbg!(&game_date_pacific);
+        dbg!(game_date_pacific >= pacific_now);
         game_date_pacific >= pacific_now
     }
 }
@@ -159,6 +161,103 @@ fn format_date_time(date_time: &DateTime<chrono_tz::Tz>) -> String {
     date_time.format("%-I:%M%p").to_string()
 }
 
+fn format_game_time(date_time: &DateTime<chrono_tz::Tz>) -> String {
+    date_time.format("%B %-d @ %-I:%M%p").to_string()
+}
+
+impl NextUp {
+    fn new(
+        linescore_response_string: &str,
+        next_response_string: &str,
+        team_id: usize,
+        utc_now: &DateTime<Utc>,
+    ) -> Result<Self, Error> {
+        let pacific_now = utc_now.with_timezone(&Pacific);
+        let today = pacific_now.date();
+        let tomorrow = today.succ();
+
+        let line_schedule: NextGameSchedule = serde_json::from_str(&linescore_response_string)?;
+
+        let next = if line_schedule.game_today(utc_now) {
+            let first = String::from("1st");
+            let no_time = String::from("00:00");
+            let game_date = &line_schedule.dates[0];
+            let game = &game_date.games[0];
+            let linescore = game.linescore.as_ref().expect("linescore");
+            let game_date_pacific = game.game_date.with_timezone(&Pacific);
+            let opponent_name = opponent_name(&game.teams, team_id);
+            let mut bottom = format!("{}", format_date_time(&game_date_pacific));
+            let top = if game.status.is_preview() {
+                if game.status.is_pregame() {
+                    bottom = "Live".to_string();
+                    "Pregame".to_string()
+                } else {
+                    "Today".to_string()
+                }
+            } else if game.status.is_live() {
+                bottom = "Live".to_string();
+                let intermission_info = linescore
+                    .intermission_info
+                    .as_ref()
+                    .expect("intermission_info");
+                if intermission_info.in_intermission {
+                    let intermission_time_left = chrono::Duration::seconds(
+                        intermission_info.intermission_time_remaining as i64,
+                    );
+                    let m = intermission_time_left.num_minutes();
+                    let s = intermission_time_left.num_seconds() - m * 60;
+                    format!(
+                        "{} intermission | {:02}:{:02}",
+                        linescore.current_period_ordinal.as_ref().unwrap_or(&first),
+                        m,
+                        s
+                    )
+                } else {
+                    format!(
+                        "{} | {}",
+                        linescore.current_period_ordinal.as_ref().unwrap_or(&first),
+                        linescore
+                            .current_period_time_remaining
+                            .as_ref()
+                            .unwrap_or(&no_time)
+                    )
+                }
+            } else {
+                bottom = "".to_string();
+                "Final".to_string()
+            };
+            NextUp {
+                bottom,
+                middle: opponent_name,
+                top: top.into(),
+                time: format_date_time(&pacific_now),
+            }
+        } else {
+            let schedule: Response = serde_json::from_str(&next_response_string)?;
+            let team = &schedule.teams[0];
+            let next_game_schedule = &team.next_game_schedule;
+            let game_date = &next_game_schedule.dates[0];
+            let game = &game_date.games[0];
+
+            let game_date_pacific = game.game_date.with_timezone(&Pacific);
+
+            info!("game = {:?}", game);
+
+            let opponent_name = opponent_name(&game.teams, team_id);
+
+            let date_str = format_game_time(&game_date_pacific);
+
+            NextUp {
+                bottom: date_str,
+                middle: opponent_name,
+                top: "Next Up".to_string(),
+                time: format_date_time(&pacific_now),
+            }
+        };
+        Ok(next)
+    }
+}
+
 async fn get_next_up(mut req: tide::Request<()>) -> tide::Result {
     let opt = Opt::from_args();
     let team_id = opt.team.unwrap_or(SHARKS_ID);
@@ -192,94 +291,12 @@ async fn get_next_up(mut req: tide::Request<()>) -> tide::Result {
         line_response_string
     };
 
-    let line_schedule: NextGameSchedule = serde_json::from_str(&linescore_response_string)?;
-
-    let next = if line_schedule.game_today() {
-        let first = String::from("1st");
-        let no_time = String::from("00:00");
-        let game_date = &line_schedule.dates[0];
-        let game = &game_date.games[0];
-        let linescore = game.linescore.as_ref().expect("linescore");
-        let game_date_pacific = game.game_date.with_timezone(&Pacific);
-        let opponent_name = opponent_name(&game.teams, team_id);
-        let mut bottom = format!("{}", format_date_time(&game_date_pacific));
-        let top = if game.status.is_preview() {
-            if game.status.is_pregame() {
-                "Pregame".to_string()
-            } else {
-                "Today".to_string()
-            }
-        } else if game.status.is_live() {
-            let intermission_info = linescore
-                .intermission_info
-                .as_ref()
-                .expect("intermission_info");
-            if intermission_info.in_intermission {
-                let intermission_time_left =
-                    chrono::Duration::seconds(intermission_info.intermission_time_remaining as i64);
-                let m = intermission_time_left.num_minutes();
-                let s = intermission_time_left.num_seconds() - m * 60;
-                format!(
-                    "{} intermission {:02}:{:02}",
-                    linescore.current_period_ordinal.as_ref().unwrap_or(&first),
-                    m,
-                    s
-                )
-            } else {
-                format!(
-                    "{} {}",
-                    linescore.current_period_ordinal.as_ref().unwrap_or(&first),
-                    linescore
-                        .current_period_time_remaining
-                        .as_ref()
-                        .unwrap_or(&no_time)
-                )
-            }
-        } else {
-            bottom = "".to_string();
-            "Final".to_string()
-        };
-        let ht = chrono_humanize::HumanTime::from(game_date_pacific);
-        ht.to_text_en(
-            chrono_humanize::Accuracy::Precise,
-            chrono_humanize::Tense::Future,
-        );
-        NextUp {
-            bottom,
-            middle: opponent_name,
-            top: top.into(),
-            time: format_date_time(&pacific_now),
-        }
-    } else {
-        let schedule: Response = serde_json::from_str(&next_response_string)?;
-        let team = &schedule.teams[0];
-        let next_game_schedule = &team.next_game_schedule;
-        let game_date = &next_game_schedule.dates[0];
-        let game = &game_date.games[0];
-
-        let game_date_pacific = game.game_date.with_timezone(&Pacific);
-
-        info!("game = {:?}", game);
-
-        let opponent_name = opponent_name(&game.teams, team_id);
-
-        let date_str = if game_date_pacific.date() == tomorrow {
-            String::from("Tomorrow")
-        } else {
-            let ht = chrono_humanize::HumanTime::from(game_date_pacific);
-            ht.to_text_en(
-                chrono_humanize::Accuracy::Rough,
-                chrono_humanize::Tense::Future,
-            )
-        };
-
-        NextUp {
-            bottom: date_str,
-            middle: opponent_name,
-            top: "Next Up".to_string(),
-            time: format_date_time(&pacific_now),
-        }
-    };
+    let next = NextUp::new(
+        &linescore_response_string,
+        &next_response_string,
+        team_id,
+        &utc_now,
+    )?;
 
     let next_json = serde_json::to_string(&next)?;
 
@@ -328,7 +345,20 @@ async fn main() -> Result<(), Error> {
 mod test {
     use super::*;
 
+    const EMPTY_LINESCORE: &str = r#"{"totalItems": 0, "dates": []}"#;
     const NEXT_TEXT: &str = include_str!("../data/next.json");
+    const NJD_BEFORE_TEXT: &str = include_str!("../data/NJD_before.json");
+    const NJD_BEFORE_LINESCORE_TEXT: &str = include_str!("../data/NJD_before_linescore.json");
+    const NJD_PREGAME_LINESCORE_TEXT: &str = include_str!("../data/NJD_pregame_linescore.json");
+    const NJD_DURING_01_LINESCORE_TEXT: &str = include_str!("../data/NJD_during_01_linescore.json");
+    const NJD_DURING_02_LINESCORE_TEXT: &str = include_str!("../data/NJD_during_02_linescore.json");
+    const NJD_DURING_03_LINESCORE_TEXT: &str = include_str!("../data/NJD_during_03_linescore.json");
+    const NJD_DURING_04_LINESCORE_TEXT: &str = include_str!("../data/NJD_during_04_linescore.json");
+    const NJD_DURING_05_LINESCORE_TEXT: &str = include_str!("../data/NJD_during_05_linescore.json");
+    const NJD_DURING_06_LINESCORE_TEXT: &str = include_str!("../data/NJD_during_06_linescore.json");
+    const NJD_DURING_07_LINESCORE_TEXT: &str = include_str!("../data/NJD_during_07_linescore.json");
+    const NJD_AFTER_LINESCORE_TEXT: &str = include_str!("../data/NJD_after_linescore.json");
+    const SJS_INT_LINESCORE_TEXT: &str = include_str!("../data/sjs_int_linescore.json");
 
     #[test]
     fn test_next() {
@@ -341,5 +371,226 @@ mod test {
         assert_eq!(1, next_game_schedule.dates.len());
         let game_date = &next_game_schedule.dates[0];
         assert_eq!(game_date.date, "2021-03-20");
+    }
+
+    fn test_engine_with_team(
+        today: &DateTime<Utc>,
+        team_id: usize,
+        linescore_response_string: &str,
+        next_response_string: &str,
+        top: &str,
+        middle: &str,
+        bottom: &str,
+    ) {
+        let next_up = NextUp::new(
+            linescore_response_string,
+            next_response_string,
+            team_id,
+            today,
+        )
+        .unwrap();
+        assert_eq!(next_up.top, top);
+        assert_eq!(next_up.middle, middle);
+        assert_eq!(next_up.bottom, bottom);
+    }
+
+    fn test_engine(
+        today: &DateTime<Utc>,
+        linescore_response_string: &str,
+        next_response_string: &str,
+        top: &str,
+        middle: &str,
+        bottom: &str,
+    ) {
+        test_engine_with_team(
+            today,
+            1,
+            linescore_response_string,
+            next_response_string,
+            top,
+            middle,
+            bottom,
+        );
+    }
+
+    #[test]
+    fn test_njd_before() {
+        let today = chrono::DateTime::parse_from_rfc3339("2021-03-19T10:00:00Z")
+            .unwrap()
+            .with_timezone(&Utc);
+        test_engine(
+            &today,
+            EMPTY_LINESCORE,
+            NJD_BEFORE_TEXT,
+            "Next Up",
+            "@ Pittsburgh Penguins",
+            "March 21 @ 10:00AM",
+        );
+    }
+
+    #[test]
+    fn test_njd_before_two_days() {
+        let today = chrono::DateTime::parse_from_rfc3339("2021-03-20T17:00:00Z")
+            .unwrap()
+            .with_timezone(&Utc);
+        test_engine(
+            &today,
+            EMPTY_LINESCORE,
+            NJD_BEFORE_TEXT,
+            "Next Up",
+            "@ Pittsburgh Penguins",
+            "March 21 @ 10:00AM",
+        );
+    }
+
+    #[test]
+    fn test_njd_pregame() {
+        let today = chrono::DateTime::parse_from_rfc3339("2021-03-21T17:00:00Z")
+            .unwrap()
+            .with_timezone(&Utc);
+        test_engine(
+            &today,
+            NJD_PREGAME_LINESCORE_TEXT,
+            NJD_BEFORE_TEXT,
+            "Pregame",
+            "@ Pittsburgh Penguins",
+            "Live",
+        );
+    }
+
+    #[test]
+    fn test_njd_during_01() {
+        let today = chrono::DateTime::parse_from_rfc3339("2021-03-21T17:00:00Z")
+            .unwrap()
+            .with_timezone(&Utc);
+        test_engine(
+            &today,
+            NJD_DURING_01_LINESCORE_TEXT,
+            NJD_BEFORE_TEXT,
+            "1st intermission | 12:41",
+            "@ Pittsburgh Penguins",
+            "Live",
+        );
+    }
+
+    #[test]
+    fn test_njd_during_02() {
+        let today = chrono::DateTime::parse_from_rfc3339("2021-03-21T17:00:00Z")
+            .unwrap()
+            .with_timezone(&Utc);
+        test_engine(
+            &today,
+            NJD_DURING_02_LINESCORE_TEXT,
+            NJD_BEFORE_TEXT,
+            "1st intermission | 00:00",
+            "@ Pittsburgh Penguins",
+            "Live",
+        );
+    }
+
+    #[test]
+    fn test_njd_during_03() {
+        let today = chrono::DateTime::parse_from_rfc3339("2021-03-21T17:00:00Z")
+            .unwrap()
+            .with_timezone(&Utc);
+        test_engine(
+            &today,
+            NJD_DURING_03_LINESCORE_TEXT,
+            NJD_BEFORE_TEXT,
+            "2nd | 18:32",
+            "@ Pittsburgh Penguins",
+            "Live",
+        );
+    }
+
+    #[test]
+    fn test_njd_during_04() {
+        let today = chrono::DateTime::parse_from_rfc3339("2021-03-21T17:00:00Z")
+            .unwrap()
+            .with_timezone(&Utc);
+        test_engine(
+            &today,
+            NJD_DURING_04_LINESCORE_TEXT,
+            NJD_BEFORE_TEXT,
+            "2nd | 03:50",
+            "@ Pittsburgh Penguins",
+            "Live",
+        );
+    }
+
+    #[test]
+    fn test_njd_during_05() {
+        let today = chrono::DateTime::parse_from_rfc3339("2021-03-21T17:00:00Z")
+            .unwrap()
+            .with_timezone(&Utc);
+        test_engine(
+            &today,
+            NJD_DURING_05_LINESCORE_TEXT,
+            NJD_BEFORE_TEXT,
+            "3rd | 08:20",
+            "@ Pittsburgh Penguins",
+            "Live",
+        );
+    }
+
+    #[test]
+    fn test_njd_during_06() {
+        let today = chrono::DateTime::parse_from_rfc3339("2021-03-21T17:00:00Z")
+            .unwrap()
+            .with_timezone(&Utc);
+        test_engine(
+            &today,
+            NJD_DURING_06_LINESCORE_TEXT,
+            NJD_BEFORE_TEXT,
+            "3rd | 00:26",
+            "@ Pittsburgh Penguins",
+            "Live",
+        );
+    }
+
+    #[test]
+    fn test_njd_during_07() {
+        let today = chrono::DateTime::parse_from_rfc3339("2021-03-21T17:00:00Z")
+            .unwrap()
+            .with_timezone(&Utc);
+        test_engine(
+            &today,
+            NJD_DURING_07_LINESCORE_TEXT,
+            NJD_BEFORE_TEXT,
+            "OT | 02:43",
+            "@ Pittsburgh Penguins",
+            "Live",
+        );
+    }
+
+    #[test]
+    fn test_njd_after() {
+        let today = chrono::DateTime::parse_from_rfc3339("2021-03-21T17:00:00Z")
+            .unwrap()
+            .with_timezone(&Utc);
+        test_engine(
+            &today,
+            NJD_AFTER_LINESCORE_TEXT,
+            NJD_BEFORE_TEXT,
+            "Final",
+            "@ Pittsburgh Penguins",
+            "",
+        );
+    }
+
+    #[test]
+    fn test_sjs_int() {
+        let today = chrono::DateTime::parse_from_rfc3339("2021-03-21T17:00:00Z")
+            .unwrap()
+            .with_timezone(&Utc);
+        test_engine_with_team(
+            &today,
+            28,
+            SJS_INT_LINESCORE_TEXT,
+            "",
+            "1st intermission | 08:46",
+            "vs Minnesota Wild",
+            "Live",
+        );
     }
 }
