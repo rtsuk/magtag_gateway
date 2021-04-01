@@ -1,16 +1,14 @@
-#![allow(unused)]
 use anyhow::{Error, Result};
-use chrono::{Date, DateTime, FixedOffset, Local, Timelike, Utc};
+use chrono::{DateTime, Local, Utc};
 use chrono_tz::US::Pacific;
 use log::info;
 use serde::{Deserialize, Serialize};
 use std::{
     env,
     fs::{self},
-    path::{Path, PathBuf},
+    path::PathBuf,
 };
 use structopt::StructOpt;
-use tide::prelude::*;
 
 #[derive(StructOpt, Debug)]
 #[structopt(name = "magtag_gateway")]
@@ -173,9 +171,6 @@ impl NextUp {
         utc_now: &DateTime<Utc>,
     ) -> Result<Self, Error> {
         let pacific_now = utc_now.with_timezone(&Pacific);
-        let today = pacific_now.date();
-        let tomorrow = today.succ();
-
         let line_schedule: NextGameSchedule = serde_json::from_str(&linescore_response_string)?;
 
         let next = if line_schedule.game_today(utc_now) {
@@ -258,14 +253,10 @@ impl NextUp {
     }
 }
 
-async fn get_next_up(mut req: tide::Request<()>) -> tide::Result {
+async fn get_next_up(_req: tide::Request<()>) -> tide::Result {
     let opt = Opt::from_args();
     let team_id = opt.team.unwrap_or(SHARKS_ID);
-    let today = chrono::offset::Local::today();
-    let tomorrow = today.succ();
-
     let utc_now: DateTime<Utc> = Utc::now();
-    let pacific_now = utc_now.with_timezone(&Pacific);
 
     let next_response_string = if let Some(next) = opt.next.as_ref() {
         fs::read_to_string(next)?
@@ -300,7 +291,7 @@ async fn get_next_up(mut req: tide::Request<()>) -> tide::Result {
 
     let next_json = serde_json::to_string(&next)?;
 
-    let mut response = tide::Response::builder(tide::StatusCode::Ok)
+    let response = tide::Response::builder(tide::StatusCode::Ok)
         .body(next_json)
         .content_type(http_types::mime::JSON)
         .build();
@@ -308,7 +299,7 @@ async fn get_next_up(mut req: tide::Request<()>) -> tide::Result {
     Ok(response)
 }
 
-async fn redirect_root(request: tide::Request<()>) -> tide::Result {
+async fn redirect_root(_request: tide::Request<()>) -> tide::Result {
     Ok(tide::Redirect::new("/next").into())
 }
 
@@ -425,6 +416,21 @@ mod test {
             "Next Up",
             "@ Pittsburgh Penguins",
             "March 21 @ 10:00AM",
+        );
+    }
+
+    #[test]
+    fn test_njd_before_linescore() {
+        let today = chrono::DateTime::parse_from_rfc3339("2021-03-19T10:00:00Z")
+            .unwrap()
+            .with_timezone(&Utc);
+        test_engine(
+            &today,
+            NJD_BEFORE_LINESCORE_TEXT,
+            NJD_BEFORE_TEXT,
+            "Today",
+            "@ Pittsburgh Penguins",
+            "10:00AM",
         );
     }
 
