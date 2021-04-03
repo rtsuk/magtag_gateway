@@ -118,9 +118,6 @@ impl NextGameSchedule {
         let game = &game_date.games[0];
         let game_date_pacific = game.game_date.with_timezone(&Pacific);
         let pacific_now = utc_now.with_timezone(&Pacific);
-        dbg!(&pacific_now);
-        dbg!(&game_date_pacific);
-        dbg!(game_date_pacific >= pacific_now);
         game_date_pacific.date() == pacific_now.date()
     }
 }
@@ -159,8 +156,17 @@ fn format_date_time(date_time: &DateTime<chrono_tz::Tz>) -> String {
     date_time.format("%-I:%M%p").to_string()
 }
 
-fn format_game_time(date_time: &DateTime<chrono_tz::Tz>) -> String {
-    date_time.format("%B %-d @ %-I:%M%p").to_string()
+fn format_game_time_relative(
+    date_time: &DateTime<chrono_tz::Tz>,
+    utc_now: &DateTime<chrono_tz::Tz>,
+) -> String {
+    let date_pacific = date_time.with_timezone(&Pacific);
+    let pacific_now = utc_now.with_timezone(&Pacific);
+    if date_pacific.date() == pacific_now.date() {
+        date_time.format("Today @ %-I:%M%p").to_string()
+    } else {
+        date_time.format("%b %-d @ %-I:%M%p").to_string()
+    }
 }
 
 impl NextUp {
@@ -182,12 +188,13 @@ impl NextUp {
             let linescore = game.linescore.as_ref().expect("linescore");
             let game_date_pacific = game.game_date.with_timezone(&Pacific);
             let opponent_name = opponent_name(&game.teams, team_id);
-            let mut bottom = format!("{}", format_date_time(&game_date_pacific));
+            let bottom;
             let top = if game.status.is_preview() {
                 if game.status.is_pregame() {
                     bottom = "Live".to_string();
                     "Pregame".to_string()
                 } else {
+                    bottom = format!("Today @ {}", format_date_time(&game_date_pacific));
                     "Today".to_string()
                 }
             } else if game.status.is_live() {
@@ -237,12 +244,13 @@ impl NextUp {
             let game = &game_date.games[0];
 
             let game_date_pacific = game.game_date.with_timezone(&Pacific);
+            let pacific_now = utc_now.with_timezone(&Pacific);
 
             info!("game = {:?}", game);
 
             let opponent_name = opponent_name(&game.teams, team_id);
 
-            let date_str = format_game_time(&game_date_pacific);
+            let date_str = format_game_time_relative(&game_date_pacific, &pacific_now);
 
             NextUp {
                 bottom: date_str,
@@ -419,7 +427,7 @@ mod test {
             NJD_BEFORE_TEXT,
             "Next Up",
             "@ Pittsburgh Penguins",
-            "March 21 @ 10:00AM",
+            "Mar 21 @ 10:00AM",
         );
     }
 
@@ -434,7 +442,7 @@ mod test {
             NJD_BEFORE_TEXT,
             "Today",
             "@ Pittsburgh Penguins",
-            "10:00AM",
+            "Today @ 10:00AM",
         );
     }
 
@@ -449,7 +457,7 @@ mod test {
             NJD_BEFORE_TEXT,
             "Next Up",
             "@ Pittsburgh Penguins",
-            "March 21 @ 10:00AM",
+            "Mar 21 @ 10:00AM",
         );
     }
 
