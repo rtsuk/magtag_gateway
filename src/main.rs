@@ -195,7 +195,7 @@ impl NextUp {
                     "Pregame".to_string()
                 } else {
                     bottom = format!("Today @ {}", format_date_time(&game_date_pacific));
-                    "Today".to_string()
+                    "Next Up".to_string()
                 }
             } else if game.status.is_live() {
                 bottom = "Live".to_string();
@@ -440,7 +440,7 @@ mod test {
             &today,
             NJD_BEFORE_LINESCORE_TEXT,
             NJD_BEFORE_TEXT,
-            "Today",
+            "Next Up",
             "@ Pittsburgh Penguins",
             "Today @ 10:00AM",
         );
