@@ -1,4 +1,4 @@
-use anyhow::{Error, Result};
+use anyhow::{Context, Error, Result};
 use chrono::{DateTime, Local, Utc};
 use chrono_tz::US::Pacific;
 use log::info;
@@ -121,7 +121,7 @@ impl NextGameSchedule {
         dbg!(&pacific_now);
         dbg!(&game_date_pacific);
         dbg!(game_date_pacific >= pacific_now);
-        game_date_pacific >= pacific_now
+        game_date_pacific.date() == pacific_now.date()
     }
 }
 
@@ -171,7 +171,8 @@ impl NextUp {
         utc_now: &DateTime<Utc>,
     ) -> Result<Self, Error> {
         let pacific_now = utc_now.with_timezone(&Pacific);
-        let line_schedule: NextGameSchedule = serde_json::from_str(&linescore_response_string)?;
+        let line_schedule: NextGameSchedule =
+            serde_json::from_str(&linescore_response_string).context("line_schedule")?;
 
         let next = if line_schedule.game_today(utc_now) {
             let first = String::from("1st");
@@ -228,7 +229,8 @@ impl NextUp {
                 time: format_date_time(&pacific_now),
             }
         } else {
-            let schedule: Response = serde_json::from_str(&next_response_string)?;
+            let schedule: Response =
+                serde_json::from_str(&next_response_string).context("next schedule")?;
             let team = &schedule.teams[0];
             let next_game_schedule = &team.next_game_schedule;
             let game_date = &next_game_schedule.dates[0];
@@ -350,6 +352,8 @@ mod test {
     const NJD_DURING_07_LINESCORE_TEXT: &str = include_str!("../data/NJD_during_07_linescore.json");
     const NJD_AFTER_LINESCORE_TEXT: &str = include_str!("../data/NJD_after_linescore.json");
     const SJS_INT_LINESCORE_TEXT: &str = include_str!("../data/sjs_int_linescore.json");
+    const SJS_AFTER_LINESCORE_TEXT: &str = include_str!("../data/sjs_after_linescore.json");
+    const SJS_AFTER_TEXT: &str = include_str!("../data/sjs_after.json");
 
     #[test]
     fn test_next() {
@@ -379,7 +383,7 @@ mod test {
             team_id,
             today,
         )
-        .unwrap();
+        .expect("test_engine_with_team: next up to succeed");
         assert_eq!(next_up.top, top);
         assert_eq!(next_up.middle, middle);
         assert_eq!(next_up.bottom, bottom);
@@ -421,7 +425,7 @@ mod test {
 
     #[test]
     fn test_njd_before_linescore() {
-        let today = chrono::DateTime::parse_from_rfc3339("2021-03-19T10:00:00Z")
+        let today = chrono::DateTime::parse_from_rfc3339("2021-03-21T10:00:00Z")
             .unwrap()
             .with_timezone(&Utc);
         test_engine(
@@ -586,17 +590,33 @@ mod test {
 
     #[test]
     fn test_sjs_int() {
-        let today = chrono::DateTime::parse_from_rfc3339("2021-03-21T17:00:00Z")
+        let today = chrono::DateTime::parse_from_rfc3339("2021-03-29T17:00:00Z")
             .unwrap()
             .with_timezone(&Utc);
         test_engine_with_team(
             &today,
             28,
             SJS_INT_LINESCORE_TEXT,
-            "",
+            NEXT_TEXT,
             "1st intermission | 08:46",
             "vs Minnesota Wild",
             "Live",
+        );
+    }
+
+    #[test]
+    fn test_sjs_after_linescore() {
+        let today = chrono::DateTime::parse_from_rfc3339("2021-04-02T17:00:00Z")
+            .unwrap()
+            .with_timezone(&Utc);
+        test_engine_with_team(
+            &today,
+            28,
+            SJS_AFTER_LINESCORE_TEXT,
+            SJS_AFTER_TEXT,
+            "Final",
+            "@ Los Angeles Kings",
+            "",
         );
     }
 }
