@@ -210,7 +210,7 @@ impl NextUp {
                     let m = intermission_time_left.num_minutes();
                     let s = intermission_time_left.num_seconds() - m * 60;
                     format!(
-                        "{} intermission | {:02}:{:02}",
+                        "{} int | {:02}:{:02}",
                         linescore.current_period_ordinal.as_ref().unwrap_or(&first),
                         m,
                         s
@@ -485,7 +485,7 @@ mod test {
             &today,
             NJD_DURING_01_LINESCORE_TEXT,
             NJD_BEFORE_TEXT,
-            "1st intermission | 12:41",
+            "1st int | 12:41",
             "@ Pittsburgh Penguins",
             "Live",
         );
@@ -500,7 +500,7 @@ mod test {
             &today,
             NJD_DURING_02_LINESCORE_TEXT,
             NJD_BEFORE_TEXT,
-            "1st intermission | 00:00",
+            "1st int | 00:00",
             "@ Pittsburgh Penguins",
             "Live",
         );
@@ -606,7 +606,7 @@ mod test {
             28,
             SJS_INT_LINESCORE_TEXT,
             NEXT_TEXT,
-            "1st intermission | 08:46",
+            "1st int | 08:46",
             "vs Minnesota Wild",
             "Live",
         );
