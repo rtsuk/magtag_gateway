@@ -10,6 +10,10 @@ use std::{
 };
 use structopt::StructOpt;
 
+const ONE_MINUTE_IN_SECONDS: i64 = 60;
+const FIFTEEN_MINUTES_IN_SECONDS: i64 = 15 * ONE_MINUTE_IN_SECONDS;
+const TWENTY_MINUTES_IN_SECONDS: i64 = 20 * ONE_MINUTE_IN_SECONDS;
+
 #[derive(StructOpt, Debug)]
 #[structopt(name = "magtag_gateway")]
 struct Opt {
@@ -142,6 +146,7 @@ struct NextUp {
     middle: String,
     bottom: String,
     time: String,
+    sleep: i64,
 }
 
 fn opponent_name(teams: &Teams, home_team: usize) -> String {
@@ -169,6 +174,18 @@ fn format_game_time_relative(
     }
 }
 
+fn sleep_time(date_time: &DateTime<chrono_tz::Tz>, utc_now: &DateTime<chrono_tz::Tz>) -> i64 {
+    let duration_until_game = *date_time - *utc_now;
+
+    if duration_until_game.num_seconds() < 0
+        || duration_until_game.num_seconds() > TWENTY_MINUTES_IN_SECONDS
+    {
+        FIFTEEN_MINUTES_IN_SECONDS
+    } else {
+        ONE_MINUTE_IN_SECONDS
+    }
+}
+
 impl NextUp {
     fn new(
         linescore_response_string: &str,
@@ -177,6 +194,7 @@ impl NextUp {
         utc_now: &DateTime<Utc>,
     ) -> Result<Self, Error> {
         let pacific_now = utc_now.with_timezone(&Pacific);
+
         let line_schedule: NextGameSchedule =
             serde_json::from_str(&linescore_response_string).context("line_schedule")?;
 
@@ -189,6 +207,7 @@ impl NextUp {
             let game_date_pacific = game.game_date.with_timezone(&Pacific);
             let opponent_name = opponent_name(&game.teams, team_id);
             let bottom;
+            let sleep = sleep_time(&game_date_pacific, &pacific_now);
             let top = if game.status.is_preview() {
                 if game.status.is_pregame() {
                     bottom = "Live".to_string();
@@ -234,6 +253,7 @@ impl NextUp {
                 middle: opponent_name,
                 top: top.into(),
                 time: format_date_time(&pacific_now),
+                sleep,
             }
         } else {
             let schedule: Response =
@@ -246,7 +266,7 @@ impl NextUp {
             let game_date_pacific = game.game_date.with_timezone(&Pacific);
             let pacific_now = utc_now.with_timezone(&Pacific);
 
-            info!("game = {:?}", game);
+            let sleep = sleep_time(&game_date_pacific, &pacific_now);
 
             let opponent_name = opponent_name(&game.teams, team_id);
 
@@ -257,6 +277,7 @@ impl NextUp {
                 middle: opponent_name,
                 top: "Next Up".to_string(),
                 time: format_date_time(&pacific_now),
+                sleep,
             }
         };
         Ok(next)
