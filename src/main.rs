@@ -131,7 +131,7 @@ impl NextGameSchedule {
 pub struct ScheduledTeam {
     pub id: usize,
     pub name: String,
-    pub next_game_schedule: NextGameSchedule,
+    pub next_game_schedule: Option<NextGameSchedule>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -260,24 +260,35 @@ impl NextUp {
                 serde_json::from_str(&next_response_string).context("next schedule")?;
             let team = &schedule.teams[0];
             let next_game_schedule = &team.next_game_schedule;
-            let game_date = &next_game_schedule.dates[0];
-            let game = &game_date.games[0];
-
-            let game_date_pacific = game.game_date.with_timezone(&Pacific);
             let pacific_now = utc_now.with_timezone(&Pacific);
+            if let Some(next_game_schedule) = next_game_schedule {
+                let game_date = &next_game_schedule.dates[0];
+                let game = &game_date.games[0];
 
-            let sleep = sleep_time(&game_date_pacific, &pacific_now);
+                let game_date_pacific = game.game_date.with_timezone(&Pacific);
 
-            let opponent_name = opponent_name(&game.teams, team_id);
+                let sleep = sleep_time(&game_date_pacific, &pacific_now);
 
-            let date_str = format_game_time_relative(&game_date_pacific, &pacific_now);
+                let opponent_name = opponent_name(&game.teams, team_id);
 
-            NextUp {
-                bottom: date_str,
-                middle: opponent_name,
-                top: "Next Up".to_string(),
-                time: format_date_time(&pacific_now),
-                sleep,
+                let date_str = format_game_time_relative(&game_date_pacific, &pacific_now);
+
+                NextUp {
+                    bottom: date_str,
+                    middle: opponent_name,
+                    top: "Next Up".to_string(),
+                    time: format_date_time(&pacific_now),
+                    sleep,
+                }
+            } else {
+                let sleep = 900;
+                NextUp {
+                    bottom: "".to_string(),
+                    middle: "No Games".to_string(),
+                    top: "Next Up".to_string(),
+                    time: format_date_time(&pacific_now),
+                    sleep,
+                }
             }
         };
         Ok(next)
@@ -383,6 +394,8 @@ mod test {
     const SJS_INT_LINESCORE_TEXT: &str = include_str!("../data/sjs_int_linescore.json");
     const SJS_AFTER_LINESCORE_TEXT: &str = include_str!("../data/sjs_after_linescore.json");
     const SJS_AFTER_TEXT: &str = include_str!("../data/sjs_after.json");
+    const SJS_DONE_LINESCORE_TEXT: &str = include_str!("../data/sjs_linescore_done.json");
+    const SJS_DONE_TEXT: &str = include_str!("../data/sjs_done.json");
 
     #[test]
     fn test_next() {
@@ -390,7 +403,7 @@ mod test {
         assert_eq!(1, schedule.teams.len());
         let team = &schedule.teams[0];
         assert_eq!(SHARKS_ID, team.id);
-        let next_game_schedule = &team.next_game_schedule;
+        let next_game_schedule = &team.next_game_schedule.as_ref().unwrap();
         assert_eq!(1, next_game_schedule.total_items);
         assert_eq!(1, next_game_schedule.dates.len());
         let game_date = &next_game_schedule.dates[0];
@@ -645,6 +658,22 @@ mod test {
             SJS_AFTER_TEXT,
             "Final",
             "@ Los Angeles Kings",
+            "",
+        );
+    }
+
+    #[test]
+    fn test_sjs_done() {
+        let today = chrono::DateTime::parse_from_rfc3339("2021-05-14T17:00:00Z")
+            .unwrap()
+            .with_timezone(&Utc);
+        test_engine_with_team(
+            &today,
+            28,
+            SJS_DONE_LINESCORE_TEXT,
+            SJS_DONE_TEXT,
+            "Next Up",
+            "No Games",
             "",
         );
     }
