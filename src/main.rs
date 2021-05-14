@@ -93,6 +93,7 @@ pub struct Linescore {
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct Game {
+    pub game_pk: usize,
     pub game_date: DateTime<Utc>,
     pub teams: Teams,
     pub status: Status,
@@ -186,6 +187,80 @@ fn sleep_time(date_time: &DateTime<chrono_tz::Tz>, utc_now: &DateTime<chrono_tz:
     }
 }
 
+#[derive(Debug, PartialEq)]
+struct PlayoffGameNumber {
+    round: usize,
+    matchup: usize,
+    game: usize,
+}
+
+impl PlayoffGameNumber {
+    fn new(round: usize, matchup: usize, game: usize) -> Self {
+        Self {
+            round,
+            matchup,
+            game,
+        }
+    }
+
+    fn parse(game_number: usize) -> Self {
+        let game_number = game_number % 10_000;
+        let round = game_number / 100;
+        let matchup = (game_number % 100) / 10;
+        let game = game_number % 10;
+        Self {
+            round,
+            matchup,
+            game,
+        }
+    }
+}
+
+#[derive(Debug, PartialEq)]
+enum GameType {
+    Preseason(usize),
+    Regular(usize),
+    Playoff(PlayoffGameNumber),
+}
+
+impl GameType {
+    fn parse(game_id: usize) -> Self {
+        let game_number = game_id % 100_000;
+        let game_type = game_number / 10_000;
+        match game_type {
+            1 => GameType::Preseason(game_number),
+            3 => GameType::Playoff(PlayoffGameNumber::parse(game_number)),
+            _ => GameType::Regular(game_number),
+        }
+    }
+}
+
+#[derive(Debug, PartialEq)]
+struct GameId {
+    season: usize,
+    game_type: GameType,
+}
+
+fn decode_game_id(game_id: usize) -> Option<GameId> {
+    let season = game_id / 1_000_000;
+
+    Some(GameId {
+        season,
+        game_type: GameType::parse(game_id),
+    })
+}
+
+fn formatted_next_up(game_id: usize) -> String {
+    if let Some(game_id) = decode_game_id(game_id) {
+        match game_id.game_type {
+            GameType::Playoff(pgn) => format!("Next Up - R:{} G:{}", pgn.round, pgn.game),
+            _ => "Next Up".to_string(),
+        }
+    } else {
+        "Next Up".to_string()
+    }
+}
+
 impl NextUp {
     fn new(
         linescore_response_string: &str,
@@ -214,7 +289,7 @@ impl NextUp {
                     "Pregame".to_string()
                 } else {
                     bottom = format!("Today @ {}", format_date_time(&game_date_pacific));
-                    "Next Up".to_string()
+                    formatted_next_up(game.game_pk)
                 }
             } else if game.status.is_live() {
                 bottom = "Live".to_string();
@@ -276,7 +351,7 @@ impl NextUp {
                 NextUp {
                     bottom: date_str,
                     middle: opponent_name,
-                    top: "Next Up".to_string(),
+                    top: formatted_next_up(game.game_pk),
                     time: format_date_time(&pacific_now),
                     sleep,
                 }
@@ -396,6 +471,7 @@ mod test {
     const SJS_AFTER_TEXT: &str = include_str!("../data/sjs_after.json");
     const SJS_DONE_LINESCORE_TEXT: &str = include_str!("../data/sjs_linescore_done.json");
     const SJS_DONE_TEXT: &str = include_str!("../data/sjs_done.json");
+    const P1_TEXT: &str = include_str!("../data/p1_playoff.json");
 
     #[test]
     fn test_next() {
@@ -675,6 +751,34 @@ mod test {
             "Next Up",
             "No Games",
             "",
+        );
+    }
+
+    #[test]
+    fn test_playoff_game_id() {
+        const EDM_FIRST_FIRST: usize = 2020030181;
+
+        let game_id = decode_game_id(EDM_FIRST_FIRST).unwrap();
+        assert_eq!(game_id.season, 2020);
+        assert_eq!(
+            game_id.game_type,
+            GameType::Playoff(PlayoffGameNumber::new(1, 8, 1))
+        );
+    }
+
+    #[test]
+    fn test_playoff_one() {
+        let today = chrono::DateTime::parse_from_rfc3339("2021-05-14T10:00:00Z")
+            .unwrap()
+            .with_timezone(&Utc);
+        test_engine_with_team(
+            &today,
+            2,
+            EMPTY_LINESCORE,
+            P1_TEXT,
+            "Next Up - R:1 G:1",
+            "@ Pittsburgh Penguins",
+            "May 16 @ 9:00AM",
         );
     }
 }

@@ -1,0 +1,106 @@
+{
+  "copyright" : "NHL and the NHL Shield are registered trademarks of the National Hockey League. NHL and NHL team marks are the property of the NHL and its teams. © NHL 2021. All Rights Reserved.",
+  "teams" : [ {
+    "id" : 2,
+    "name" : "New York Islanders",
+    "link" : "/api/v1/teams/2",
+    "venue" : {
+      "name" : "Nassau Veterans Memorial Coliseum",
+      "link" : "/api/v1/venues/null",
+      "city" : "Uniondale",
+      "timeZone" : {
+        "id" : "America/New_York",
+        "offset" : -4,
+        "tz" : "EDT"
+      }
+    },
+    "abbreviation" : "NYI",
+    "teamName" : "Islanders",
+    "locationName" : "New York",
+    "firstYearOfPlay" : "1972",
+    "division" : {
+      "id" : 25,
+      "name" : "MassMutual East",
+      "link" : "/api/v1/divisions/25"
+    },
+    "conference" : {
+      "id" : 6,
+      "name" : "Eastern",
+      "link" : "/api/v1/conferences/6"
+    },
+    "franchise" : {
+      "franchiseId" : 22,
+      "teamName" : "Islanders",
+      "link" : "/api/v1/franchises/22"
+    },
+    "nextGameSchedule" : {
+      "totalItems" : 1,
+      "totalEvents" : 0,
+      "totalGames" : 1,
+      "totalMatches" : 0,
+      "dates" : [ {
+        "date" : "2021-05-16",
+        "totalItems" : 1,
+        "totalEvents" : 0,
+        "totalGames" : 1,
+        "totalMatches" : 0,
+        "games" : [ {
+          "gamePk" : 2020030111,
+          "link" : "/api/v1/game/2020030111/feed/live",
+          "gameType" : "P",
+          "season" : "20202021",
+          "gameDate" : "2021-05-16T16:00:00Z",
+          "status" : {
+            "abstractGameState" : "Preview",
+            "codedGameState" : "1",
+            "detailedState" : "Scheduled",
+            "statusCode" : "1",
+            "startTimeTBD" : false
+          },
+          "teams" : {
+            "away" : {
+              "leagueRecord" : {
+                "wins" : 0,
+                "losses" : 0,
+                "type" : "league"
+              },
+              "score" : 0,
+              "team" : {
+                "id" : 2,
+                "name" : "New York Islanders",
+                "link" : "/api/v1/teams/2"
+              }
+            },
+            "home" : {
+              "leagueRecord" : {
+                "wins" : 0,
+                "losses" : 0,
+                "type" : "league"
+              },
+              "score" : 0,
+              "team" : {
+                "id" : 5,
+                "name" : "Pittsburgh Penguins",
+                "link" : "/api/v1/teams/5"
+              }
+            }
+          },
+          "venue" : {
+            "id" : 5034,
+            "name" : "PPG Paints Arena",
+            "link" : "/api/v1/venues/5034"
+          },
+          "content" : {
+            "link" : "/api/v1/game/2020030111/content"
+          }
+        } ],
+        "events" : [ ],
+        "matches" : [ ]
+      } ]
+    },
+    "shortName" : "NY Islanders",
+    "officialSiteUrl" : "http://www.newyorkislanders.com/",
+    "franchiseId" : 22,
+    "active" : true
+  } ]
+}
