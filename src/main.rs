@@ -253,7 +253,7 @@ fn decode_game_id(game_id: usize) -> Option<GameId> {
 fn formatted_next_up(game_id: usize) -> String {
     if let Some(game_id) = decode_game_id(game_id) {
         match game_id.game_type {
-            GameType::Playoff(pgn) => format!("Next Up - Game {}", pgn.game),
+            GameType::Playoff(pgn) => format!("Next - Game {}", pgn.game),
             _ => "Next Up".to_string(),
         }
     } else {
@@ -776,7 +776,7 @@ mod test {
             2,
             EMPTY_LINESCORE,
             P1_TEXT,
-            "Next Up - Game 1",
+            "Next - Game 1",
             "@ Pittsburgh Penguins",
             "May 16 @ 9:00AM",
         );
