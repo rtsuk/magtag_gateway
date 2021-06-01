@@ -1,1 +1,1 @@
-web: ./target/release/magtag_gateway -v --team 10
+web: ./target/release/magtag_gateway -v --team 8
