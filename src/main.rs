@@ -395,9 +395,9 @@ impl NextUp {
             let event_date_pacific = event.date.with_timezone(&Pacific);
             let date_str = format_game_time_relative(&event_date_pacific, &pacific_now);
             Ok(Self {
-                bottom: "".to_string(),
+                top: "Next Up".to_string(),
                 middle: event.text.clone(),
-                top: date_str,
+                bottom: date_str,
                 time: format_date_time(&pacific_now),
                 sleep: 900,
             })
