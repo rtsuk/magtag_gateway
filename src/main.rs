@@ -13,6 +13,18 @@ use structopt::StructOpt;
 const ONE_MINUTE_IN_SECONDS: i64 = 60;
 const FIFTEEN_MINUTES_IN_SECONDS: i64 = 15 * ONE_MINUTE_IN_SECONDS;
 const TWENTY_MINUTES_IN_SECONDS: i64 = 20 * ONE_MINUTE_IN_SECONDS;
+const EVENTS_TEXT: &str = include_str!("../data/events.toml");
+
+#[derive(Serialize, Deserialize, Debug, PartialOrd, Ord, PartialEq, Eq)]
+struct Event {
+    text: String,
+    date: DateTime<Utc>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct EventList {
+    events: Vec<Event>,
+}
 
 #[derive(StructOpt, Debug)]
 #[structopt(name = "magtag_gateway")]
@@ -195,6 +207,7 @@ struct PlayoffGameNumber {
 }
 
 impl PlayoffGameNumber {
+    #[allow(unused)]
     fn new(round: usize, matchup: usize, game: usize) -> Self {
         Self {
             round,
@@ -368,6 +381,36 @@ impl NextUp {
         };
         Ok(next)
     }
+
+    fn new_event(utc_now: &DateTime<Utc>) -> Result<Self, Error> {
+        let pacific_now = utc_now.with_timezone(&Pacific);
+        let mut events: EventList = toml::from_str(EVENTS_TEXT).expect("events");
+        dbg!(&events);
+        events
+            .events
+            .sort_by(|a, b| a.date.partial_cmp(&b.date).expect("partial_cmp"));
+        dbg!(&events);
+        let event = events.events.iter().find(|event| event.date > *utc_now);
+        if let Some(event) = event {
+            let event_date_pacific = event.date.with_timezone(&Pacific);
+            let date_str = format_game_time_relative(&event_date_pacific, &pacific_now);
+            Ok(Self {
+                bottom: "".to_string(),
+                middle: event.text.clone(),
+                top: date_str,
+                time: format_date_time(&pacific_now),
+                sleep: 900,
+            })
+        } else {
+            Ok(Self {
+                bottom: "".to_string(),
+                middle: "No Event".to_string(),
+                top: "Next Up".to_string(),
+                time: format_date_time(&pacific_now),
+                sleep: 900,
+            })
+        }
+    }
 }
 
 async fn get_next_up(_req: tide::Request<()>) -> tide::Result {
@@ -420,6 +463,21 @@ async fn redirect_root(_request: tide::Request<()>) -> tide::Result {
     Ok(tide::Redirect::new("/next").into())
 }
 
+async fn get_events(_req: tide::Request<()>) -> tide::Result {
+    let utc_now: DateTime<Utc> = Utc::now();
+
+    let next = NextUp::new_event(&utc_now)?;
+
+    let next_json = serde_json::to_string(&next)?;
+
+    let response = tide::Response::builder(tide::StatusCode::Ok)
+        .body(next_json)
+        .content_type(http_types::mime::JSON)
+        .build();
+
+    Ok(response)
+}
+
 #[async_std::main]
 async fn main() -> Result<(), Error> {
     let opt = Opt::from_args();
@@ -444,6 +502,7 @@ async fn main() -> Result<(), Error> {
     let mut app = tide::new();
     app.at("/").get(redirect_root);
     app.at("/next").get(get_next_up);
+    app.at("/events").get(get_events);
     app.listen(format!("0.0.0.0:{}", port)).await?;
 
     Ok(())
@@ -780,5 +839,13 @@ mod test {
             "@ Pittsburgh Penguins",
             "May 16 @ 9:00AM",
         );
+    }
+
+    #[test]
+    fn test_events() {
+        let events: EventList = toml::from_str(EVENTS_TEXT).expect("events");
+        assert_eq!(events.events.len(), 2);
+        assert_eq!(&events.events[1].text, "buyout closes");
+        assert_eq!(&events.events[0].text, "buyout opens");
     }
 }

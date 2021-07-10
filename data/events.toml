@@ -1,0 +1,35 @@
+[[events]]
+text = "Buyout opens"
+date = "2021-07-8T12:00:00-04:00"
+
+[[events]]
+text = "Protected lists due"
+date = "2021-07-17T17:00:00-04:00"
+
+[[events]]
+text = "Kraken window opens"
+date = "2021-07-18T10:00:00-04:00"
+
+[[events]]
+text = "Kraken window closes"
+date = "2021-07-21T10:00:00-04:00"
+
+[[events]]
+text = "Seattle Expansion Draft"
+date = "2021-07-21T20:00:00-04:00"
+
+[[events]]
+text = "2021 NHL Draft, Round 1"
+date = "2021-07-23T19:00:00-04:00"
+
+[[events]]
+text = "2021 NHL Draft, Rounds 2-7"
+date = "2021-07-23T11:30:00-04:00"
+
+[[events]]
+text = "buyout closes"
+date = "2021-07-27T17:00:00-04:00"
+
+[[events]]
+text = "free agency"
+date = "2021-07-28T12:00:00-04:00"
