@@ -20,11 +20,11 @@ date = "2021-07-21T20:00:00-04:00"
 
 [[events]]
 text = "2021 NHL Draft, Round 1"
-date = "2021-07-23T19:00:00-04:00"
+date = "2021-07-23T20:00:00-04:00"
 
 [[events]]
 text = "2021 NHL Draft, Rounds 2-7"
-date = "2021-07-23T11:30:00-04:00"
+date = "2021-07-24T11:30:00-04:00"
 
 [[events]]
 text = "buyout closes"
