@@ -84,6 +84,10 @@ impl Status {
     fn is_live(&self) -> bool {
         self.abstract_game_state == "Live"
     }
+
+    fn is_tbd(&self) -> bool {
+        self.detailed_state == "Scheduled (Time TBD)"
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -177,13 +181,22 @@ fn format_date_time(date_time: &DateTime<chrono_tz::Tz>) -> String {
 fn format_game_time_relative(
     date_time: &DateTime<chrono_tz::Tz>,
     utc_now: &DateTime<chrono_tz::Tz>,
+    is_tdb: bool,
 ) -> String {
     let date_pacific = date_time.with_timezone(&Pacific);
     let pacific_now = utc_now.with_timezone(&Pacific);
     if date_pacific.date() == pacific_now.date() {
-        date_time.format("Today @ %-I:%M%p").to_string()
+        if is_tdb {
+            "Today".to_string()
+        } else {
+            date_time.format("Today @ %-I:%M%p").to_string()
+        }
     } else {
-        date_time.format("%b %-d @ %-I:%M%p").to_string()
+        if is_tdb {
+            date_time.format("%b %-d").to_string()
+        } else {
+            date_time.format("%b %-d @ %-I:%M%p").to_string()
+        }
     }
 }
 
@@ -359,7 +372,11 @@ impl NextUp {
 
                 let opponent_name = opponent_name(&game.teams, team_id);
 
-                let date_str = format_game_time_relative(&game_date_pacific, &pacific_now);
+                let date_str = format_game_time_relative(
+                    &game_date_pacific,
+                    &pacific_now,
+                    game.status.is_tbd(),
+                );
 
                 NextUp {
                     bottom: date_str,
@@ -393,7 +410,7 @@ impl NextUp {
         let event = events.events.iter().find(|event| event.date > *utc_now);
         if let Some(event) = event {
             let event_date_pacific = event.date.with_timezone(&Pacific);
-            let date_str = format_game_time_relative(&event_date_pacific, &pacific_now);
+            let date_str = format_game_time_relative(&event_date_pacific, &pacific_now, false);
             Ok(Self {
                 top: "Next Up".to_string(),
                 middle: event.text.clone(),
@@ -844,8 +861,8 @@ mod test {
     #[test]
     fn test_events() {
         let events: EventList = toml::from_str(EVENTS_TEXT).expect("events");
-        assert_eq!(events.events.len(), 2);
-        assert_eq!(&events.events[1].text, "buyout closes");
-        assert_eq!(&events.events[0].text, "buyout opens");
+        assert_eq!(events.events.len(), 9);
+        assert_eq!(&events.events[1].text, "Protected lists due");
+        assert_eq!(&events.events[0].text, "Buyout opens");
     }
 }
