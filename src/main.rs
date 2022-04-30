@@ -430,9 +430,14 @@ impl NextUp {
     }
 }
 
-async fn get_next_up(_req: tide::Request<()>) -> tide::Result {
+async fn get_next_up(req: tide::Request<()>) -> tide::Result {
     let opt = Opt::from_args();
-    let team_id = opt.team.unwrap_or(SHARKS_ID);
+    let team_id_param = req
+        .param("team")
+        .ok()
+        .and_then(|team_id_str| team_id_str.parse::<usize>().ok());
+    println!("team_id_param = {:?}", team_id_param);
+    let team_id = team_id_param.unwrap_or_else(||opt.team.unwrap_or(SHARKS_ID));
     let utc_now: DateTime<Utc> = Utc::now();
 
     let next_response_string = if let Some(next) = opt.next.as_ref() {
@@ -519,6 +524,7 @@ async fn main() -> Result<(), Error> {
     let mut app = tide::new();
     app.at("/").get(redirect_root);
     app.at("/next").get(get_next_up);
+    app.at("/next/:team").get(get_next_up);
     app.at("/events").get(get_events);
     app.listen(format!("0.0.0.0:{}", port)).await?;
 
