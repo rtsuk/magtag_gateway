@@ -11,7 +11,7 @@ use std::{
 use structopt::StructOpt;
 
 const ONE_MINUTE_IN_SECONDS: i64 = 60;
-const FIFTEEN_MINUTES_IN_SECONDS: i64 = 15 * ONE_MINUTE_IN_SECONDS;
+const TWO_HOURS_IN_SECONDS: i64 = 120 * ONE_MINUTE_IN_SECONDS;
 const TWENTY_MINUTES_IN_SECONDS: i64 = 20 * ONE_MINUTE_IN_SECONDS;
 const EVENTS_TEXT: &str = include_str!("../data/events.toml");
 
@@ -202,11 +202,11 @@ fn format_game_time_relative(
 
 fn sleep_time(date_time: &DateTime<chrono_tz::Tz>, utc_now: &DateTime<chrono_tz::Tz>) -> i64 {
     let duration_until_game = *date_time - *utc_now;
-
-    if duration_until_game.num_seconds() < 0
-        || duration_until_game.num_seconds() > TWENTY_MINUTES_IN_SECONDS
-    {
-        FIFTEEN_MINUTES_IN_SECONDS
+    let duration_until_game_seconds = duration_until_game.num_seconds();
+    if duration_until_game_seconds < 0 {
+        TWO_HOURS_IN_SECONDS
+    } else if duration_until_game_seconds > TWENTY_MINUTES_IN_SECONDS {
+        duration_until_game_seconds - TWENTY_MINUTES_IN_SECONDS
     } else {
         ONE_MINUTE_IN_SECONDS
     }
@@ -437,7 +437,7 @@ async fn get_next_up(req: tide::Request<()>) -> tide::Result {
         .ok()
         .and_then(|team_id_str| team_id_str.parse::<usize>().ok());
     println!("team_id_param = {:?}", team_id_param);
-    let team_id = team_id_param.unwrap_or_else(||opt.team.unwrap_or(SHARKS_ID));
+    let team_id = team_id_param.unwrap_or_else(|| opt.team.unwrap_or(SHARKS_ID));
     let utc_now: DateTime<Utc> = Utc::now();
 
     let next_response_string = if let Some(next) = opt.next.as_ref() {
@@ -451,6 +451,7 @@ async fn get_next_up(req: tide::Request<()>) -> tide::Result {
         let next_response_string = next_response.body_string().await?;
         next_response_string
     };
+    println!("next_response_string = {:?}", next_response_string);
 
     let linescore_response_string = if let Some(line) = opt.line.as_ref() {
         fs::read_to_string(line)?
@@ -463,6 +464,10 @@ async fn get_next_up(req: tide::Request<()>) -> tide::Result {
         let line_response_string = line_response.body_string().await?;
         line_response_string
     };
+    println!(
+        "linescore_response_string = {:?}",
+        linescore_response_string
+    );
 
     let next = NextUp::new(
         &linescore_response_string,
