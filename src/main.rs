@@ -11,7 +11,8 @@ use std::{
 use structopt::StructOpt;
 
 const ONE_MINUTE_IN_SECONDS: i64 = 60;
-const TWO_HOURS_IN_SECONDS: i64 = 120 * ONE_MINUTE_IN_SECONDS;
+const ONE_HOUR_IN_SECONDS: i64 = 60 * ONE_MINUTE_IN_SECONDS;
+const TWO_HOURS_IN_SECONDS: i64 = 2 * ONE_HOUR_IN_SECONDS;
 const TWENTY_MINUTES_IN_SECONDS: i64 = 20 * ONE_MINUTE_IN_SECONDS;
 const EVENTS_TEXT: &str = include_str!("../data/events.toml");
 
@@ -206,7 +207,7 @@ fn sleep_time(date_time: &DateTime<chrono_tz::Tz>, utc_now: &DateTime<chrono_tz:
     if duration_until_game_seconds < 0 {
         TWO_HOURS_IN_SECONDS
     } else if duration_until_game_seconds > TWENTY_MINUTES_IN_SECONDS {
-        duration_until_game_seconds - TWENTY_MINUTES_IN_SECONDS
+        (duration_until_game_seconds - TWENTY_MINUTES_IN_SECONDS).max(TWO_HOURS_IN_SECONDS)
     } else {
         ONE_MINUTE_IN_SECONDS
     }
