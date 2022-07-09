@@ -207,7 +207,7 @@ fn sleep_time(date_time: &DateTime<chrono_tz::Tz>, utc_now: &DateTime<chrono_tz:
     if duration_until_game_seconds < 0 {
         TWO_HOURS_IN_SECONDS
     } else if duration_until_game_seconds > TWENTY_MINUTES_IN_SECONDS {
-        (duration_until_game_seconds - TWENTY_MINUTES_IN_SECONDS).max(TWO_HOURS_IN_SECONDS)
+        (duration_until_game_seconds - TWENTY_MINUTES_IN_SECONDS).min(TWO_HOURS_IN_SECONDS)
     } else {
         ONE_MINUTE_IN_SECONDS
     }
