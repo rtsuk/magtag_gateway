@@ -165,6 +165,7 @@ struct NextUp {
     bottom: String,
     time: String,
     sleep: i64,
+    date: DateTime<Utc>,
 }
 
 fn opponent_name(teams: &Teams, home_team: usize) -> String {
@@ -299,6 +300,7 @@ impl Default for NextUp {
             top: "Next Up".to_string(),
             time: format_date_time(&pacific_now),
             sleep,
+            date: utc_now,
         }
     }
 }
@@ -371,6 +373,7 @@ impl NextUp {
                 top: top.into(),
                 time: format_date_time(&pacific_now),
                 sleep,
+                date: game.game_date,
             }
         } else {
             let schedule: Response =
@@ -400,6 +403,7 @@ impl NextUp {
                     top: formatted_next_up(game.game_pk),
                     time: format_date_time(&pacific_now),
                     sleep,
+                    date: game.game_date,
                 }
             } else {
                 NextUp::default()
@@ -424,6 +428,7 @@ impl NextUp {
                 bottom: date_str,
                 time: format_date_time(&pacific_now),
                 sleep: 900,
+                date: event.date,
             })
         } else {
             Ok(Self::default())
@@ -442,6 +447,7 @@ impl NextUp {
                 top: "Next Up".to_string(),
                 time: format_date_time(&pacific_now),
                 sleep: 900,
+                date: next_game.date,
             })
         } else {
             Ok(Self::default())
