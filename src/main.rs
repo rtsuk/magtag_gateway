@@ -1,5 +1,5 @@
 use anyhow::{Context, Error, Result};
-use chrono::{DateTime, Local, Utc};
+use chrono::{DateTime, Local, NaiveDate, NaiveTime, TimeZone, Utc};
 use chrono_tz::US::Pacific;
 use log::info;
 use serde::{Deserialize, Serialize};
@@ -288,6 +288,21 @@ fn formatted_next_up(game_id: usize) -> String {
     }
 }
 
+impl Default for NextUp {
+    fn default() -> Self {
+        let utc_now: DateTime<Utc> = Utc::now();
+        let pacific_now = utc_now.with_timezone(&Pacific);
+        let sleep = 900;
+        Self {
+            bottom: "".to_string(),
+            middle: "No Games".to_string(),
+            top: "Next Up".to_string(),
+            time: format_date_time(&pacific_now),
+            sleep,
+        }
+    }
+}
+
 impl NextUp {
     fn new(
         linescore_response_string: &str,
@@ -387,14 +402,7 @@ impl NextUp {
                     sleep,
                 }
             } else {
-                let sleep = 900;
-                NextUp {
-                    bottom: "".to_string(),
-                    middle: "No Games".to_string(),
-                    top: "Next Up".to_string(),
-                    time: format_date_time(&pacific_now),
-                    sleep,
-                }
+                NextUp::default()
             }
         };
         Ok(next)
@@ -403,11 +411,9 @@ impl NextUp {
     fn new_event(utc_now: &DateTime<Utc>) -> Result<Self, Error> {
         let pacific_now = utc_now.with_timezone(&Pacific);
         let mut events: EventList = toml::from_str(EVENTS_TEXT).expect("events");
-        dbg!(&events);
         events
             .events
             .sort_by(|a, b| a.date.partial_cmp(&b.date).expect("partial_cmp"));
-        dbg!(&events);
         let event = events.events.iter().find(|event| event.date > *utc_now);
         if let Some(event) = event {
             let event_date_pacific = event.date.with_timezone(&Pacific);
@@ -420,25 +426,31 @@ impl NextUp {
                 sleep: 900,
             })
         } else {
+            Ok(Self::default())
+        }
+    }
+
+    fn new_barracuda_event(utc_now: &DateTime<Utc>, games: Vec<AhlGame>) -> Result<Self, Error> {
+        let pacific_now = utc_now.with_timezone(&Pacific);
+        let maybe_next_game = games.iter().find(|game| game.date > *utc_now);
+        if let Some(next_game) = maybe_next_game {
+            let event_date_pacific = next_game.date.with_timezone(&Pacific);
+            let date_str = format_game_time_relative(&event_date_pacific, &pacific_now, false);
             Ok(Self {
-                bottom: "".to_string(),
-                middle: "No Event".to_string(),
+                bottom: date_str,
+                middle: next_game.opponent_name.clone(),
                 top: "Next Up".to_string(),
                 time: format_date_time(&pacific_now),
                 sleep: 900,
             })
+        } else {
+            Ok(Self::default())
         }
     }
 }
 
-async fn get_next_up(req: tide::Request<()>) -> tide::Result {
+async fn get_nhl_next_up(team_id: usize) -> Result<NextUp, Error> {
     let opt = Opt::from_args();
-    let team_id_param = req
-        .param("team")
-        .ok()
-        .and_then(|team_id_str| team_id_str.parse::<usize>().ok());
-    println!("team_id_param = {:?}", team_id_param);
-    let team_id = team_id_param.unwrap_or_else(|| opt.team.unwrap_or(SHARKS_ID));
     let utc_now: DateTime<Utc> = Utc::now();
 
     let next_response_string = if let Some(next) = opt.next.as_ref() {
@@ -448,11 +460,14 @@ async fn get_next_up(req: tide::Request<()>) -> tide::Result {
             "https://statsapi.web.nhl.com/api/v1/teams/{}?expand=team.schedule.next",
             team_id
         ))
-        .await?;
-        let next_response_string = next_response.body_string().await?;
+        .await
+        .map_err(anyhow::Error::msg)?;
+        let next_response_string = next_response
+            .body_string()
+            .await
+            .map_err(anyhow::Error::msg)?;
         next_response_string
     };
-    println!("next_response_string = {:?}", next_response_string);
 
     let linescore_response_string = if let Some(line) = opt.line.as_ref() {
         fs::read_to_string(line)?
@@ -461,24 +476,32 @@ async fn get_next_up(req: tide::Request<()>) -> tide::Result {
             "https://statsapi.web.nhl.com/api/v1/schedule?expand=schedule.linescore&teamId={}",
             team_id
         ))
-        .await?;
-        let line_response_string = line_response.body_string().await?;
+        .await
+        .map_err(anyhow::Error::msg)?;
+        let line_response_string = line_response
+            .body_string()
+            .await
+            .map_err(anyhow::Error::msg)?;
         line_response_string
     };
-    println!(
-        "linescore_response_string = {:?}",
-        linescore_response_string
-    );
 
-    let next = NextUp::new(
+    Ok(NextUp::new(
         &linescore_response_string,
         &next_response_string,
         team_id,
         &utc_now,
-    )?;
+    )?)
+}
 
+async fn get_next_up(req: tide::Request<()>) -> tide::Result {
+    let opt = Opt::from_args();
+    let team_id_param = req
+        .param("team")
+        .ok()
+        .and_then(|team_id_str| team_id_str.parse::<usize>().ok());
+    let team_id = team_id_param.unwrap_or_else(|| opt.team.unwrap_or(SHARKS_ID));
+    let next = get_nhl_next_up(team_id).await.ok().unwrap_or_default();
     let next_json = serde_json::to_string(&next)?;
-
     let response = tide::Response::builder(tide::StatusCode::Ok)
         .body(next_json)
         .content_type(http_types::mime::JSON)
@@ -495,6 +518,141 @@ async fn get_events(_req: tide::Request<()>) -> tide::Result {
     let utc_now: DateTime<Utc> = Utc::now();
 
     let next = NextUp::new_event(&utc_now)?;
+
+    let next_json = serde_json::to_string(&next)?;
+
+    let response = tide::Response::builder(tide::StatusCode::Ok)
+        .body(next_json)
+        .content_type(http_types::mime::JSON)
+        .build();
+
+    Ok(response)
+}
+
+fn calculate_year(date_text: &str) -> usize {
+    match &date_text[5..8] {
+        "Jan" | "Feb" | "Mar" | "Apr" => 2023,
+        _ => 2022,
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct AhlGame {
+    date: DateTime<Utc>,
+    opponent_name: String,
+}
+
+pub fn load_games_from_page(page: &str) -> Vec<AhlGame> {
+    let document = scraper::Html::parse_document(page);
+    let entry_selector = scraper::Selector::parse("div.entry").expect("selector");
+    let date_selector = scraper::Selector::parse("div.date-time span.date").expect("date selector");
+    let time_selector = scraper::Selector::parse("div.date-time span.time").expect("time selector");
+    let away_selector = scraper::Selector::parse("div.home-or-away").expect("home selector");
+    let opponent_selector = scraper::Selector::parse("span.team-title").expect("opponent_selector");
+    let entries = document.select(&entry_selector);
+    entries
+        .filter_map(|item| {
+            let date_text = item
+                .select(&date_selector)
+                .map(|element| element.inner_html())
+                .collect::<Vec<String>>()
+                .join(" ")
+                .trim()
+                .to_owned();
+            if date_text.len() > 0 {
+                let time_text = item
+                    .select(&time_selector)
+                    .map(|element| element.inner_html())
+                    .collect::<Vec<String>>()
+                    .join(" ")
+                    .trim()
+                    .to_owned();
+                let away_text = item
+                    .select(&away_selector)
+                    .map(|element| element.inner_html())
+                    .collect::<Vec<String>>()
+                    .join(" ");
+                let away_text_trimmed = away_text.trim();
+                let opponent_text = item
+                    .select(&opponent_selector)
+                    .map(|element| element.inner_html())
+                    .collect::<Vec<String>>()
+                    .join(" ")
+                    .trim()
+                    .to_owned();
+
+                if away_text_trimmed.eq_ignore_ascii_case("home") {
+                    let time = NaiveTime::parse_from_str(&time_text, "%I:%M%p").expect("time");
+                    let year = calculate_year(&date_text);
+                    let date_text_with_year = format!("{} {}", date_text, year);
+                    let date = NaiveDate::parse_from_str(&date_text_with_year, "%a, %b %d %Y")
+                        .expect("date");
+                    let naive_dt = date.and_time(time);
+                    let tz_aware = Pacific.from_local_datetime(&naive_dt).unwrap();
+                    Some(AhlGame {
+                        date: tz_aware.with_timezone(&Utc),
+                        opponent_name: opponent_text,
+                    })
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        })
+        .collect()
+}
+
+async fn get_barracuda_next_up(_req: tide::Request<()>) -> tide::Result {
+    let response = reqwest::blocking::get("https://www.sjbarracuda.com/games")
+        .map(|r| r.text().expect("text"));
+
+    let next = if let Ok(response) = response {
+        let games = load_games_from_page(&response);
+        let utc_now: DateTime<Utc> = Utc::now();
+        NextUp::new_barracuda_event(&utc_now, games)?
+    } else {
+        NextUp::default()
+    };
+
+    let next_json = serde_json::to_string(&next)?;
+
+    let response = tide::Response::builder(tide::StatusCode::Ok)
+        .body(next_json)
+        .content_type(http_types::mime::JSON)
+        .build();
+
+    Ok(response)
+}
+
+async fn get_next_up_either(_req: tide::Request<()>) -> tide::Result {
+    let response = reqwest::blocking::get("https://www.sjbarracuda.com/games")
+        .map(|r| r.text().expect("text"));
+
+    let b_next = if let Ok(response) = response {
+        let games = load_games_from_page(&response);
+        let utc_now: DateTime<Utc> = Utc::now();
+        Some(NextUp::new_barracuda_event(&utc_now, games)?)
+    } else {
+        None
+    };
+
+    let team_id = SHARKS_ID;
+    let nhl_next = get_nhl_next_up(team_id).await.ok();
+
+    let next = if b_next.is_none() {
+        nhl_next.unwrap_or_default()
+    } else if nhl_next.is_none() {
+        b_next.unwrap_or_default()
+    } else {
+        let nhl_next = nhl_next.unwrap();
+        let b_next = b_next.unwrap();
+        if nhl_next.date < b_next.date {
+            nhl_next
+        } else {
+            b_next
+        }
+    };
 
     let next_json = serde_json::to_string(&next)?;
 
@@ -532,6 +690,8 @@ async fn main() -> Result<(), Error> {
     app.at("/next").get(get_next_up);
     app.at("/next/:team").get(get_next_up);
     app.at("/events").get(get_events);
+    app.at("/barracuda").get(get_barracuda_next_up);
+    app.at("/either").get(get_next_up_either);
     app.listen(format!("0.0.0.0:{}", port)).await?;
 
     Ok(())
@@ -540,6 +700,7 @@ async fn main() -> Result<(), Error> {
 #[cfg(test)]
 mod test {
     use super::*;
+    use chrono::{NaiveDate, NaiveTime};
 
     const EMPTY_LINESCORE: &str = r#"{"totalItems": 0, "dates": []}"#;
     const NEXT_TEXT: &str = include_str!("../data/next.json");
@@ -560,6 +721,7 @@ mod test {
     const SJS_DONE_LINESCORE_TEXT: &str = include_str!("../data/sjs_linescore_done.json");
     const SJS_DONE_TEXT: &str = include_str!("../data/sjs_done.json");
     const P1_TEXT: &str = include_str!("../data/p1_playoff.json");
+    const BARRACUDA_SCHEDULE_TEXT: &str = include_str!("../data/barracuda.html");
 
     #[test]
     fn test_next() {
@@ -876,5 +1038,14 @@ mod test {
         assert_eq!(events.events.len(), 9);
         assert_eq!(&events.events[1].text, "Protected lists due");
         assert_eq!(&events.events[0].text, "Buyout opens");
+    }
+
+    #[test]
+    fn test_barracuda() {
+        let games = load_games_from_page(BARRACUDA_SCHEDULE_TEXT);
+        assert_eq!(games.len(), 36);
+        assert_eq!(&games[0].opponent_name, "Henderson Silver Knights");
+        assert_eq!(&games[2].opponent_name, "Ontario Reign");
+        assert_eq!(&games[35].opponent_name, "Colorado Eagles");
     }
 }

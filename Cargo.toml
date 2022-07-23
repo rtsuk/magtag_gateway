@@ -13,6 +13,8 @@ chrono = { version = "0.4.19", features = ["serde"] }
 chrono-tz = "0.5.3"
 http-types = "2.10.0"
 log = { version = "0.4", features = ["max_level_trace", "release_max_level_trace"] }
+reqwest = { version = "0.11.11", features = ["blocking"] }
+scraper = "0.13.0"
 serde = "1.0.123"
 serde_json = "1.0"
 structopt = "0.3.21"
