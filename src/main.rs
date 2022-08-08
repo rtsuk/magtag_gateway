@@ -421,13 +421,14 @@ impl NextUp {
         let event = events.events.iter().find(|event| event.date > *utc_now);
         if let Some(event) = event {
             let event_date_pacific = event.date.with_timezone(&Pacific);
+            let sleep = sleep_time(&event_date_pacific, &pacific_now);
             let date_str = format_game_time_relative(&event_date_pacific, &pacific_now, false);
             Ok(Self {
                 top: "Next Up".to_string(),
                 middle: event.text.clone(),
                 bottom: date_str,
                 time: format_date_time(&pacific_now),
-                sleep: 900,
+                sleep,
                 date: event.date,
             })
         } else {
@@ -440,13 +441,14 @@ impl NextUp {
         let maybe_next_game = games.iter().find(|game| game.date > *utc_now);
         if let Some(next_game) = maybe_next_game {
             let event_date_pacific = next_game.date.with_timezone(&Pacific);
+            let sleep = sleep_time(&event_date_pacific, &pacific_now);
             let date_str = format_game_time_relative(&event_date_pacific, &pacific_now, false);
             Ok(Self {
                 bottom: date_str,
                 middle: next_game.opponent_name.clone(),
                 top: "Next Up".to_string(),
                 time: format_date_time(&pacific_now),
-                sleep: 900,
+                sleep,
                 date: next_game.date,
             })
         } else {
@@ -706,7 +708,6 @@ async fn main() -> Result<(), Error> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use chrono::{NaiveDate, NaiveTime};
 
     const EMPTY_LINESCORE: &str = r#"{"totalItems": 0, "dates": []}"#;
     const NEXT_TEXT: &str = include_str!("../data/next.json");
