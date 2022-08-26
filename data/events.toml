@@ -3,6 +3,10 @@ text = "Tech CU Arena Fan Reveal"
 date = "2022-08-26T11:00:00-07:00"
 
 [[events]]
+text = "Sharks365 Season Preview"
+date = "2022-09-14T17:30:00-07:00"
+
+[[events]]
 text = "Rookie vs Ducks"
 date = "2022-09-16T19:00:00-07:00"
 
@@ -21,3 +25,7 @@ date = "2022-09-25T16:00:00-07:00"
 [[events]]
 text = "Preseason vs Ducks"
 date = "2022-09-27T19:30:00-07:00"
+
+[[events]]
+text = "Flight to Berlin"
+date = "2022-09-30T20:00:00-07:00"
