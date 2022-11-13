@@ -16,6 +16,10 @@ const TWO_HOURS_IN_SECONDS: i64 = 2 * ONE_HOUR_IN_SECONDS;
 const TWENTY_MINUTES_IN_SECONDS: i64 = 20 * ONE_MINUTE_IN_SECONDS;
 const EVENTS_TEXT: &str = include_str!("../data/events.toml");
 
+const CUDA_NEXT_UP: &str = "Cuda Next Up";
+const SHARKS_NEXT_UP: &str = "Sharks Next Up";
+const SHARKS: &str = "Sharks";
+
 #[derive(Serialize, Deserialize, Debug, PartialOrd, Ord, PartialEq, Eq)]
 struct Event {
     text: String,
@@ -278,14 +282,15 @@ fn decode_game_id(game_id: usize) -> Option<GameId> {
     })
 }
 
-fn formatted_next_up(game_id: usize) -> String {
+fn formatted_next_up(team: &str, game_id: usize) -> String {
+    let default_value = format!("{} Next Up", team);
     if let Some(game_id) = decode_game_id(game_id) {
         match game_id.game_type {
             GameType::Playoff(pgn) => format!("Next - Game {}", pgn.game),
-            _ => "Next Up".to_string(),
+            _ => default_value,
         }
     } else {
-        "Next Up".to_string()
+        default_value
     }
 }
 
@@ -297,7 +302,7 @@ impl Default for NextUp {
         Self {
             bottom: "".to_string(),
             middle: "No Games".to_string(),
-            top: "Next Up".to_string(),
+            top: "No Team Name".to_string(),
             time: format_date_time(&pacific_now),
             sleep,
             date: utc_now,
@@ -333,7 +338,7 @@ impl NextUp {
                     "Pregame".to_string()
                 } else {
                     bottom = format!("Today @ {}", format_date_time(&game_date_pacific));
-                    formatted_next_up(game.game_pk)
+                    formatted_next_up(SHARKS, game.game_pk)
                 }
             } else if game.status.is_live() {
                 bottom = "Live".to_string();
@@ -400,13 +405,16 @@ impl NextUp {
                 NextUp {
                     bottom: date_str,
                     middle: opponent_name,
-                    top: formatted_next_up(game.game_pk),
+                    top: formatted_next_up(SHARKS, game.game_pk),
                     time: format_date_time(&pacific_now),
                     sleep,
                     date: game.game_date,
                 }
             } else {
-                NextUp::default()
+                NextUp {
+                    top: SHARKS_NEXT_UP.to_string(),
+                    ..NextUp::default()
+                }
             }
         };
         Ok(next)
@@ -424,7 +432,7 @@ impl NextUp {
             let sleep = sleep_time(&event_date_pacific, &pacific_now);
             let date_str = format_game_time_relative(&event_date_pacific, &pacific_now, false);
             Ok(Self {
-                top: "Next Up".to_string(),
+                top: SHARKS_NEXT_UP.to_string(),
                 middle: event.text.clone(),
                 bottom: date_str,
                 time: format_date_time(&pacific_now),
@@ -432,7 +440,10 @@ impl NextUp {
                 date: event.date,
             })
         } else {
-            Ok(Self::default())
+            Ok(Self {
+                top: SHARKS_NEXT_UP.to_string(),
+                ..Self::default()
+            })
         }
     }
 
@@ -446,13 +457,16 @@ impl NextUp {
             Ok(Self {
                 bottom: date_str,
                 middle: next_game.opponent_name.clone(),
-                top: "Next Up".to_string(),
+                top: CUDA_NEXT_UP.to_string(),
                 time: format_date_time(&pacific_now),
                 sleep,
                 date: next_game.date,
             })
         } else {
-            Ok(Self::default())
+            Ok(Self {
+                top: CUDA_NEXT_UP.to_string(),
+                ..Self::default()
+            })
         }
     }
 }
@@ -620,7 +634,10 @@ async fn get_barracuda_next_up(_req: tide::Request<()>) -> tide::Result {
         let utc_now: DateTime<Utc> = Utc::now();
         NextUp::new_barracuda_event(&utc_now, games)?
     } else {
-        NextUp::default()
+        NextUp {
+            top: CUDA_NEXT_UP.to_string(),
+            ..NextUp::default()
+        }
     };
 
     let next_json = serde_json::to_string(&next)?;
@@ -792,7 +809,7 @@ mod test {
             &today,
             EMPTY_LINESCORE,
             NJD_BEFORE_TEXT,
-            "Next Up",
+            "Sharks Next Up",
             "@ Pittsburgh Penguins",
             "Mar 21 @ 10:00AM",
         );
@@ -807,7 +824,7 @@ mod test {
             &today,
             NJD_BEFORE_LINESCORE_TEXT,
             NJD_BEFORE_TEXT,
-            "Next Up",
+            "Sharks Next Up",
             "@ Pittsburgh Penguins",
             "Today @ 10:00AM",
         );
@@ -822,7 +839,7 @@ mod test {
             &today,
             EMPTY_LINESCORE,
             NJD_BEFORE_TEXT,
-            "Next Up",
+            "Sharks Next Up",
             "@ Pittsburgh Penguins",
             "Mar 21 @ 10:00AM",
         );
@@ -1005,7 +1022,7 @@ mod test {
             28,
             SJS_DONE_LINESCORE_TEXT,
             SJS_DONE_TEXT,
-            "Next Up",
+            "Sharks Next Up",
             "No Games",
             "",
         );
@@ -1042,9 +1059,9 @@ mod test {
     #[test]
     fn test_events() {
         let events: EventList = toml::from_str(EVENTS_TEXT).expect("events");
-        assert_eq!(events.events.len(), 9);
-        assert_eq!(&events.events[1].text, "Protected lists due");
-        assert_eq!(&events.events[0].text, "Buyout opens");
+        assert_eq!(events.events.len(), 8);
+        assert_eq!(&events.events[1].text, "Sharks365 Season Preview");
+        assert_eq!(&events.events[0].text, "Tech CU Arena Fan Reveal");
     }
 
     #[test]
