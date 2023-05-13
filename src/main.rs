@@ -1,10 +1,11 @@
 use anyhow::{Context, Error, Result};
 use chrono::{DateTime, Local, NaiveDate, NaiveTime, TimeZone, Utc};
 use chrono_tz::US::Pacific;
-use games_today::teams::TEAM_NICKNAMES;
 use log::info;
+use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use std::{
+    collections::HashMap,
     env,
     fs::{self},
     path::PathBuf,
@@ -19,6 +20,46 @@ const EVENTS_TEXT: &str = include_str!("../data/events.toml");
 
 const CUDA_NEXT_UP: &str = "Cuda Next Up";
 const SHARKS_NEXT_UP: &str = "Sharks Next Up";
+
+pub static TEAM_NICKNAMES: Lazy<HashMap<usize, &'static str>> = Lazy::new(|| {
+    [
+        (1, "Devils"),
+        (2, "Islanders"),
+        (3, "Rangers"),
+        (4, "Flyers"),
+        (5, "Penguins"),
+        (6, "Bruins"),
+        (7, "Sabres"),
+        (8, "Canadiens"),
+        (9, "Senators"),
+        (10, "Leafs"),
+        (12, "Canes"),
+        (13, "Panthers"),
+        (14, "Lightning"),
+        (15, "Capitals"),
+        (16, "Blackhawks"),
+        (17, "Wings"),
+        (18, "Predators"),
+        (19, "Blues"),
+        (20, "Flames"),
+        (21, "Avalanche"),
+        (22, "Oilers"),
+        (23, "Canucks"),
+        (24, "Ducks"),
+        (25, "Stars"),
+        (26, "Kings"),
+        (28, "Sharks"),
+        (29, "Jackets"),
+        (30, "Wild"),
+        (52, "Jets"),
+        (54, "Coyotes"),
+        (55, "Knights"),
+        (56, "Kraken"),
+    ]
+    .iter()
+    .cloned()
+    .collect()
+});
 
 #[derive(Serialize, Deserialize, Debug, PartialOrd, Ord, PartialEq, Eq)]
 struct Event {
@@ -473,7 +514,7 @@ impl NextUp {
 }
 
 async fn get_nhl_next_up(team_id: usize) -> Result<NextUp, Error> {
-    let nickname = TEAM_NICKNAMES.get(&team_id).unwrap_or_else(|| &"Sharks");
+    let nickname = TEAM_NICKNAMES.get(&team_id).unwrap_or_else(|| &"Unknown");
     let opt = Opt::from_args();
     let utc_now: DateTime<Utc> = Utc::now();
 
