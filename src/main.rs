@@ -1,6 +1,7 @@
 use anyhow::{Context, Error, Result};
 use chrono::{DateTime, Local, NaiveDate, NaiveTime, TimeZone, Utc};
 use chrono_tz::US::Pacific;
+use games_today::teams::TEAM_NICKNAMES;
 use log::info;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -18,7 +19,6 @@ const EVENTS_TEXT: &str = include_str!("../data/events.toml");
 
 const CUDA_NEXT_UP: &str = "Cuda Next Up";
 const SHARKS_NEXT_UP: &str = "Sharks Next Up";
-const SHARKS: &str = "Sharks";
 
 #[derive(Serialize, Deserialize, Debug, PartialOrd, Ord, PartialEq, Eq)]
 struct Event {
@@ -286,7 +286,7 @@ fn formatted_next_up(team: &str, game_id: usize) -> String {
     let default_value = format!("{} Next Up", team);
     if let Some(game_id) = decode_game_id(game_id) {
         match game_id.game_type {
-            GameType::Playoff(pgn) => format!("Next - Game {}", pgn.game),
+            GameType::Playoff(pgn) => format!("{} - Game {}", team, pgn.game),
             _ => default_value,
         }
     } else {
@@ -312,6 +312,7 @@ impl Default for NextUp {
 
 impl NextUp {
     fn new(
+        nickname: &str,
         linescore_response_string: &str,
         next_response_string: &str,
         team_id: usize,
@@ -338,7 +339,7 @@ impl NextUp {
                     "Pregame".to_string()
                 } else {
                     bottom = format!("Today @ {}", format_date_time(&game_date_pacific));
-                    formatted_next_up(SHARKS, game.game_pk)
+                    formatted_next_up(nickname, game.game_pk)
                 }
             } else if game.status.is_live() {
                 bottom = "Live".to_string();
@@ -405,14 +406,14 @@ impl NextUp {
                 NextUp {
                     bottom: date_str,
                     middle: opponent_name,
-                    top: formatted_next_up(SHARKS, game.game_pk),
+                    top: formatted_next_up(nickname, game.game_pk),
                     time: format_date_time(&pacific_now),
                     sleep,
                     date: game.game_date,
                 }
             } else {
                 NextUp {
-                    top: SHARKS_NEXT_UP.to_string(),
+                    top: format!("{} Next Up", nickname),
                     ..NextUp::default()
                 }
             }
@@ -472,6 +473,7 @@ impl NextUp {
 }
 
 async fn get_nhl_next_up(team_id: usize) -> Result<NextUp, Error> {
+    let nickname = TEAM_NICKNAMES.get(&team_id).unwrap_or_else(|| &"Sharks");
     let opt = Opt::from_args();
     let utc_now: DateTime<Utc> = Utc::now();
 
@@ -508,6 +510,7 @@ async fn get_nhl_next_up(team_id: usize) -> Result<NextUp, Error> {
     };
 
     Ok(NextUp::new(
+        nickname,
         &linescore_response_string,
         &next_response_string,
         team_id,
