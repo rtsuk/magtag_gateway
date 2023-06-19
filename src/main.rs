@@ -16,7 +16,6 @@ const ONE_MINUTE_IN_SECONDS: i64 = 60;
 const ONE_HOUR_IN_SECONDS: i64 = 60 * ONE_MINUTE_IN_SECONDS;
 const TWO_HOURS_IN_SECONDS: i64 = 2 * ONE_HOUR_IN_SECONDS;
 const TWENTY_MINUTES_IN_SECONDS: i64 = 20 * ONE_MINUTE_IN_SECONDS;
-const EVENTS_TEXT: &str = include_str!("../data/events.toml");
 
 const CUDA_NEXT_UP: &str = "Cuda Next Up";
 const SHARKS_NEXT_UP: &str = "Sharks Next Up";
@@ -462,9 +461,9 @@ impl NextUp {
         Ok(next)
     }
 
-    fn new_event(utc_now: &DateTime<Utc>) -> Result<Self, Error> {
+    fn new_event(utc_now: &DateTime<Utc>, events_text: &str) -> Result<Self, Error> {
         let pacific_now = utc_now.with_timezone(&Pacific);
-        let mut events: EventList = toml::from_str(EVENTS_TEXT).expect("events");
+        let mut events: EventList = toml::from_str(events_text).expect("events");
         events
             .events
             .sort_by(|a, b| a.date.partial_cmp(&b.date).expect("partial_cmp"));
@@ -583,7 +582,16 @@ async fn redirect_root(_request: tide::Request<()>) -> tide::Result {
 async fn get_events(_req: tide::Request<()>) -> tide::Result {
     let utc_now: DateTime<Utc> = Utc::now();
 
-    let next = NextUp::new_event(&utc_now)?;
+    let mut event_response = surf::get("https://storage.googleapis.com/magtag/events.toml")
+        .await
+        .map_err(anyhow::Error::msg)?;
+
+    let event_response_string = event_response
+        .body_string()
+        .await
+        .map_err(anyhow::Error::msg)?;
+
+    let next = NextUp::new_event(&utc_now, &event_response_string)?;
 
     let next_json = serde_json::to_string(&next)?;
 
@@ -1099,6 +1107,8 @@ mod test {
             "May 16 @ 9:00AM",
         );
     }
+
+    const EVENTS_TEXT: &str = include_str!("../data/events.toml");
 
     #[test]
     fn test_events() {
