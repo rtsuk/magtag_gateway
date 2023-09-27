@@ -821,7 +821,9 @@ mod test {
         middle: &str,
         bottom: &str,
     ) {
+        let nickname = TEAM_NICKNAMES.get(&team_id).unwrap_or_else(|| &"Unknown");
         let next_up = NextUp::new(
+            nickname,
             linescore_response_string,
             next_response_string,
             team_id,
@@ -857,11 +859,12 @@ mod test {
         let today = chrono::DateTime::parse_from_rfc3339("2021-03-19T10:00:00Z")
             .unwrap()
             .with_timezone(&Utc);
-        test_engine(
+        test_engine_with_team(
             &today,
+            1,
             EMPTY_LINESCORE,
             NJD_BEFORE_TEXT,
-            "Sharks Next Up",
+            "Devils Next Up",
             "@ Pittsburgh Penguins",
             "Mar 21 @ 10:00AM",
         );
@@ -872,11 +875,12 @@ mod test {
         let today = chrono::DateTime::parse_from_rfc3339("2021-03-21T10:00:00Z")
             .unwrap()
             .with_timezone(&Utc);
-        test_engine(
+        test_engine_with_team(
             &today,
+            1,
             NJD_BEFORE_LINESCORE_TEXT,
             NJD_BEFORE_TEXT,
-            "Sharks Next Up",
+            "Devils Next Up",
             "@ Pittsburgh Penguins",
             "Today @ 10:00AM",
         );
@@ -887,11 +891,12 @@ mod test {
         let today = chrono::DateTime::parse_from_rfc3339("2021-03-20T17:00:00Z")
             .unwrap()
             .with_timezone(&Utc);
-        test_engine(
+        test_engine_with_team(
             &today,
+            1,
             EMPTY_LINESCORE,
             NJD_BEFORE_TEXT,
-            "Sharks Next Up",
+            "Devils Next Up",
             "@ Pittsburgh Penguins",
             "Mar 21 @ 10:00AM",
         );
@@ -1102,7 +1107,7 @@ mod test {
             2,
             EMPTY_LINESCORE,
             P1_TEXT,
-            "Next - Game 1",
+            "Islanders - Game 1",
             "@ Pittsburgh Penguins",
             "May 16 @ 9:00AM",
         );
@@ -1113,9 +1118,9 @@ mod test {
     #[test]
     fn test_events() {
         let events: EventList = toml::from_str(EVENTS_TEXT).expect("events");
-        assert_eq!(events.events.len(), 8);
-        assert_eq!(&events.events[1].text, "Sharks365 Season Preview");
-        assert_eq!(&events.events[0].text, "Tech CU Arena Fan Reveal");
+        assert_eq!(events.events.len(), 4);
+        assert_eq!(&events.events[1].text, "NHL Draft Round 1");
+        assert_eq!(&events.events[0].text, "2023 NHL Awards");
     }
 
     #[test]
