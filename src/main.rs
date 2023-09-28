@@ -1,5 +1,5 @@
 use anyhow::{Context, Error, Result};
-use chrono::{DateTime, Local, NaiveDate, NaiveTime, TimeZone, Utc};
+use chrono::{DateTime, Local, Utc};
 use chrono_tz::US::Pacific;
 use log::info;
 use once_cell::sync::Lazy;
@@ -59,6 +59,30 @@ pub static TEAM_NICKNAMES: Lazy<HashMap<usize, &'static str>> = Lazy::new(|| {
     .cloned()
     .collect()
 });
+
+const GAMES_WITH_TICKETS: &[[&str; 2]] = &[
+    ["Icehogs", "2023-10-14T02:00:00Z"],
+    ["Icehogs", "2023-10-14T21:00:00Z"],
+    ["Firebirds", "2023-10-29T01:00:00Z"],
+    ["Checkers", "2023-11-11T02:00:00Z"],
+    ["Checkers", "2023-11-12T22:00:00Z"],
+    ["Eagles", "2023-11-19T01:00:00Z"],
+    ["Reign", "2023-11-25T22:00:00Z"],
+    ["Silver Knights", "2023-12-09T02:00:00Z"],
+    ["Silver Knights", "2023-12-10T01:00:00Z"],
+    ["Wranglers", "2023-12-17T01:00:00Z"],
+    ["Condors", "2023-12-31T01:00:00Z"],
+    ["Roadrunners", "2024-01-04T02:00:00Z"],
+    ["Condors", "2024-01-13T02:00:00Z"],
+    ["Wranglers", "2024-01-27T02:00:00Z"],
+    ["Wranglers", "2024-01-28T01:00:00Z"],
+    ["Firebirds", "2024-02-22T02:00:00Z"],
+    ["Canucks", "2024-02-24T21:00:00Z"],
+    ["Roadrunners", "2024-03-23T21:00:00Z"],
+    ["Reign", "2024-03-27T02:00:00Z"],
+    ["Stars", "2024-04-12T02:00:00Z"],
+    ["Stars", "2024-04-13T20:00:00Z"],
+];
 
 #[derive(Serialize, Deserialize, Debug, PartialOrd, Ord, PartialEq, Eq)]
 struct Event {
@@ -603,94 +627,32 @@ async fn get_events(_req: tide::Request<()>) -> tide::Result {
     Ok(response)
 }
 
-fn calculate_year(date_text: &str) -> usize {
-    match &date_text[5..8] {
-        "Jan" | "Feb" | "Mar" | "Apr" => 2023,
-        _ => 2022,
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct AhlGame {
     date: DateTime<Utc>,
     opponent_name: String,
 }
 
-pub fn load_games_from_page(page: &str) -> Vec<AhlGame> {
-    let document = scraper::Html::parse_document(page);
-    let entry_selector = scraper::Selector::parse("div.entry").expect("selector");
-    let date_selector = scraper::Selector::parse("div.date-time span.date").expect("date selector");
-    let time_selector = scraper::Selector::parse("div.date-time span.time").expect("time selector");
-    let away_selector = scraper::Selector::parse("div.home-or-away").expect("home selector");
-    let opponent_selector = scraper::Selector::parse("span.team-title").expect("opponent_selector");
-    let entries = document.select(&entry_selector);
-    entries
-        .filter_map(|item| {
-            let date_text = item
-                .select(&date_selector)
-                .map(|element| element.inner_html())
-                .collect::<Vec<String>>()
-                .join(" ")
-                .trim()
-                .to_owned();
-            if date_text.len() > 0 {
-                let time_text = item
-                    .select(&time_selector)
-                    .map(|element| element.inner_html())
-                    .collect::<Vec<String>>()
-                    .join(" ")
-                    .trim()
-                    .to_owned();
-                let away_text = item
-                    .select(&away_selector)
-                    .map(|element| element.inner_html())
-                    .collect::<Vec<String>>()
-                    .join(" ");
-                let away_text_trimmed = away_text.trim();
-                let opponent_text = item
-                    .select(&opponent_selector)
-                    .map(|element| element.inner_html())
-                    .collect::<Vec<String>>()
-                    .join(" ")
-                    .trim()
-                    .to_owned();
+impl AhlGame {
+    fn new(opponent_name: &str, date: &str) -> AhlGame {
+        let date: DateTime<Utc> = DateTime::parse_from_rfc3339(date).expect("datetime").into();
+        AhlGame {
+            opponent_name: opponent_name.to_string(),
+            date,
+        }
+    }
+}
 
-                if away_text_trimmed.eq_ignore_ascii_case("home") {
-                    let time = NaiveTime::parse_from_str(&time_text, "%I:%M%p").expect("time");
-                    let year = calculate_year(&date_text);
-                    let date_text_with_year = format!("{} {}", date_text, year);
-                    let date = NaiveDate::parse_from_str(&date_text_with_year, "%a, %b %d %Y")
-                        .expect("date");
-                    let naive_dt = date.and_time(time);
-                    let tz_aware = Pacific.from_local_datetime(&naive_dt).unwrap();
-                    Some(AhlGame {
-                        date: tz_aware.with_timezone(&Utc),
-                        opponent_name: opponent_text,
-                    })
-                } else {
-                    None
-                }
-            } else {
-                None
-            }
-        })
+pub fn load_games_from_list(list: &[[&str; 2]]) -> Vec<AhlGame> {
+    list.iter()
+        .map(|[opponent_name, date]| AhlGame::new(opponent_name, date))
         .collect()
 }
 
 async fn get_barracuda_next_up(_req: tide::Request<()>) -> tide::Result {
-    let response = reqwest::blocking::get("https://www.sjbarracuda.com/games")
-        .map(|r| r.text().expect("text"));
-
-    let next = if let Ok(response) = response {
-        let games = load_games_from_page(&response);
-        let utc_now: DateTime<Utc> = Utc::now();
-        NextUp::new_barracuda_event(&utc_now, games)?
-    } else {
-        NextUp {
-            top: CUDA_NEXT_UP.to_string(),
-            ..NextUp::default()
-        }
-    };
+    let games = load_games_from_list(GAMES_WITH_TICKETS);
+    let utc_now: DateTime<Utc> = Utc::now();
+    let next = NextUp::new_barracuda_event(&utc_now, games)?;
 
     let next_json = serde_json::to_string(&next)?;
 
@@ -703,16 +665,9 @@ async fn get_barracuda_next_up(_req: tide::Request<()>) -> tide::Result {
 }
 
 async fn get_next_up_either(_req: tide::Request<()>) -> tide::Result {
-    let response = reqwest::blocking::get("https://www.sjbarracuda.com/games")
-        .map(|r| r.text().expect("text"));
-
-    let b_next = if let Ok(response) = response {
-        let games = load_games_from_page(&response);
-        let utc_now: DateTime<Utc> = Utc::now();
-        Some(NextUp::new_barracuda_event(&utc_now, games)?)
-    } else {
-        None
-    };
+    let games = load_games_from_list(GAMES_WITH_TICKETS);
+    let utc_now: DateTime<Utc> = Utc::now();
+    let b_next = NextUp::new_barracuda_event(&utc_now, games).ok();
 
     let team_id = SHARKS_ID;
     let nhl_next = get_nhl_next_up(team_id).await.ok();
@@ -797,7 +752,6 @@ mod test {
     const SJS_DONE_LINESCORE_TEXT: &str = include_str!("../data/sjs_linescore_done.json");
     const SJS_DONE_TEXT: &str = include_str!("../data/sjs_done.json");
     const P1_TEXT: &str = include_str!("../data/p1_playoff.json");
-    const BARRACUDA_SCHEDULE_TEXT: &str = include_str!("../data/barracuda.html");
 
     #[test]
     fn test_next() {
@@ -1125,10 +1079,10 @@ mod test {
 
     #[test]
     fn test_barracuda() {
-        let games = load_games_from_page(BARRACUDA_SCHEDULE_TEXT);
-        assert_eq!(games.len(), 36);
-        assert_eq!(&games[0].opponent_name, "Henderson Silver Knights");
-        assert_eq!(&games[2].opponent_name, "Ontario Reign");
-        assert_eq!(&games[35].opponent_name, "Colorado Eagles");
+        let games = load_games_from_list(GAMES_WITH_TICKETS);
+        assert_eq!(games.len(), 21);
+        assert_eq!(&games[0].opponent_name, "Icehogs");
+        assert_eq!(&games[2].opponent_name, "Firebirds");
+        assert_eq!(&games[20].opponent_name, "Stars");
     }
 }
